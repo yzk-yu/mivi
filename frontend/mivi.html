@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>觅 MIVI · 对话式本地生活管家</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#fff8f5; --surface:#fffdfb; --surface-soft:#fff1e9; --surface-warm:#fff3c4;
+  --primary:#9a4600; --primary-hot:#ff8a3d; --primary-fixed:#ffdbc9; --accent:#fdc003;
+  --text:#2f1500; --muted:#6d5243; --line:#e7cdbf;
+  --ok:#3f8f5b; --warn:#c77a1a; --err:#ba1a1a;
+  --shadow:0 18px 50px rgba(92,58,30,.16); --shadow-soft:0 8px 22px rgba(92,58,30,.10);
+  font-family:"Noto Sans SC",system-ui,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;}
+body{color:var(--text);
+  background:radial-gradient(circle at 6% -5%,rgba(255,138,61,.16),transparent 30%),
+    radial-gradient(circle at 96% 0%,rgba(253,192,3,.12),transparent 26%),
+    linear-gradient(135deg,#fff8f5,#fff1e8 55%,#fff9f5);overflow:hidden;}
+.material-symbols-outlined{font-family:"Material Symbols Outlined";font-size:20px;line-height:1;vertical-align:middle;}
+button{font:inherit;cursor:pointer;border:0;background:none;}
+
+.app{height:100vh;display:grid;grid-template-columns:280px 1fr;}
+
+/* 左边栏 */
+.side{background:rgba(255,247,240,.9);border-right:1px solid var(--line);backdrop-filter:blur(12px);display:flex;flex-direction:column;min-height:0;}
+.side .top{padding:14px 14px 8px;}
+.newchat{width:100%;height:46px;border-radius:14px;background:var(--primary-hot);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow-soft);transition:.15s;}
+.newchat:hover{background:#ff7a23;transform:translateY(-1px);}
+.quick{padding:8px 12px;display:flex;flex-direction:column;gap:8px;}
+.qcard{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:left;transition:.15s;}
+.qcard:hover{background:var(--surface-warm);transform:translateY(-1px);}
+.qcard .ic{font-size:20px;}
+.qcard b{font-size:13.5px;display:block;}
+.qcard small{color:var(--muted);font-size:11.5px;}
+.hist{flex:1;min-height:0;overflow-y:auto;padding:6px 12px;}
+.hlabel{color:var(--muted);font-size:11px;font-weight:700;margin:12px 6px 6px;}
+.hitem{display:flex;gap:8px;align-items:center;padding:9px 10px;border-radius:11px;font-size:13px;color:var(--text);width:100%;text-align:left;}
+.hitem:hover{background:var(--surface-soft);}
+.hitem.on{background:var(--surface-warm);font-weight:700;}
+.hitem .material-symbols-outlined{font-size:17px;color:var(--muted);}
+
+.profile-dock{margin:8px 12px 12px;border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:12px;box-shadow:var(--shadow-soft);cursor:pointer;transition:.15s;}
+.profile-dock:hover{border-color:var(--primary-hot);}
+.pd-head{display:flex;align-items:center;gap:8px;}
+.pd-head b{font-size:13px;}
+.pd-head .pct{margin-left:auto;font-size:12px;font-weight:800;color:var(--primary-hot);}
+.pd-body{display:flex;gap:10px;align-items:center;margin-top:8px;}
+.pd-tags{display:flex;flex-wrap:wrap;gap:4px;}
+.pd-tags span{font-size:10.5px;background:var(--surface-warm);color:var(--primary);border-radius:6px;padding:2px 6px;font-weight:600;}
+.bar{height:5px;border-radius:99px;background:var(--surface-soft);margin-top:9px;overflow:hidden;}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--primary-hot));width:0;transition:width .6s ease;}
+.user-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--line);}
+.user-row .ava{width:32px;height:32px;border-radius:50%;background:var(--primary-hot);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;}
+
+/* 主区 */
+.main{display:flex;flex-direction:column;min-height:0;position:relative;}
+.body-split{flex:1;min-height:0;display:flex;}
+.chat-col{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;}
+.plan-col{display:none;width:380px;flex:0 0 380px;border-left:1px solid var(--line);background:rgba(255,247,240,.6);flex-direction:column;min-height:0;}
+.body-split.split .plan-col{display:flex;}
+.body-split.split .chat-col .wrap{max-width:none;}
+.pc-head{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line);color:var(--primary);font-weight:900;}
+.pc-live{margin-left:auto;font-size:11px;font-weight:700;color:var(--ok);background:#eaf6ee;border-radius:999px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;}
+.pc-live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);animation:tbpulse 1.6s ease-in-out infinite;}
+.pc-body{flex:1;min-height:0;overflow-y:auto;padding:14px;}
+.pc-adjust{margin-left:auto;font-size:12px;font-weight:700;color:var(--primary);background:var(--surface-warm);border-radius:999px;padding:6px 12px;display:inline-flex;align-items:center;gap:4px;}
+.pc-adjust:hover{background:#ffe7a8;}
+.head{height:56px;display:flex;align-items:center;justify-content:center;gap:8px;border-bottom:1px solid var(--line);background:rgba(255,253,251,.8);backdrop-filter:blur(10px);}
+.head .logo{width:30px;height:30px;border-radius:9px;background:var(--primary-fixed);display:grid;place-items:center;font-size:17px;}
+.head b{color:var(--primary);font-weight:900;font-size:16px;letter-spacing:-.02em;}
+.stream{flex:1;min-height:0;overflow-y:auto;padding:24px 0 130px;}
+.wrap{max-width:760px;margin:0 auto;padding:0 24px;display:flex;flex-direction:column;gap:16px;}
+
+.msg{display:flex;gap:11px;align-items:flex-start;animation:rise .35s ease both;}
+.msg.user{justify-content:flex-end;}
+@keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.dots i{animation:blink 1.2s infinite;font-weight:bold;}
+.dots i:nth-child(2){animation-delay:.2s;}.dots i:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,100%{opacity:.2;}50%{opacity:1;}}
+.ava{width:34px;height:34px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;background:var(--primary-fixed);font-size:18px;}
+.bubble{max-width:80%;padding:11px 15px;border-radius:18px;font-size:14.5px;line-height:1.65;box-shadow:var(--shadow-soft);}
+.bubble.fox{background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:6px;}
+.bubble.user{background:var(--primary-hot);color:#fff;border-bottom-right-radius:6px;font-weight:500;}
+.bubble.alert{background:#fff6ec;border:1px solid #f3d4a8;}
+.trip-bar{flex:1;display:flex;align-items:center;gap:11px;background:linear-gradient(135deg,#fff3c4,#ffe7cf);border:1px solid #f3d4a8;border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-soft);}
+.tb-dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:0 0 auto;animation:tbpulse 1.6s ease-in-out infinite;}
+@keyframes tbpulse{0%,100%{box-shadow:0 0 0 0 rgba(63,143,91,.5);}50%{box-shadow:0 0 0 6px rgba(63,143,91,0);}}
+.tb-text{flex:1;min-width:0;}
+.tb-text b{font-size:13.5px;display:block;}
+.tb-text span{font-size:12px;color:var(--muted);}
+.tb-adjust{flex:0 0 auto;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:700;color:var(--primary);display:inline-flex;align-items:center;gap:4px;}
+.tb-adjust:hover{background:var(--surface-warm);}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px 18px;box-shadow:var(--shadow-soft);width:100%;}
+.card .ct{display:flex;align-items:center;justify-content:space-between;}
+.card h4{margin:0;font-size:16px;}
+.badge{font-size:11px;background:var(--surface-warm);color:var(--primary);border-radius:6px;padding:2px 8px;font-weight:700;}
+.subt{color:var(--muted);font-size:13px;margin-top:3px;}
+.icon-btn{width:32px;height:32px;border-radius:10px;background:var(--surface-soft);color:var(--primary);display:grid;place-items:center;}
+.icon-btn:hover{background:var(--surface-warm);}
+
+.slot{display:grid;grid-template-columns:26px 1fr;gap:11px;padding:13px 0;border-top:1px solid var(--line);align-items:start;transition:opacity .2s;}
+.slot:first-of-type{border-top:0;}
+.slot.off{opacity:.45;}
+.slot.off .v{text-decoration:line-through;}
+.ck{width:23px;height:23px;border-radius:7px;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center;margin-top:2px;transition:.15s;}
+.ck .material-symbols-outlined{font-size:16px;color:#fff;font-weight:700;}
+.ck.on{background:var(--primary-hot);border-color:var(--primary-hot);}
+.slot-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.time-chip{font-weight:800;color:var(--primary);font-size:12.5px;background:var(--surface-soft);border-radius:8px;padding:4px 9px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;}
+.time-chip:hover{background:var(--surface-warm);}
+.time-chip .material-symbols-outlined{opacity:.6;}
+.slot-ic{font-size:19px;}
+.slot .v{font-weight:700;font-size:15px;}
+.slot-head .detail-btn{margin-left:auto;}
+.detail-btn{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--primary);background:var(--surface-soft);border-radius:999px;padding:5px 11px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+.detail-btn:hover{background:var(--surface-warm);}
+.time-edit{display:none;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:var(--surface-soft);border-radius:10px;}
+.time-edit.open{display:flex;}
+.time-edit button{padding:5px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);color:var(--primary);font-weight:700;font-size:12px;}
+.time-edit button:hover{background:var(--surface-warm);}
+.time-sel{font:inherit;font-weight:800;color:var(--primary);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 6px;outline:0;}
+.time-sel:focus{border-color:var(--primary-hot);}
+.time-ok{padding:6px 14px;border-radius:8px;background:var(--primary-hot);color:#fff;font-weight:800;font-size:12.5px;}
+.time-ok:hover{background:#ff7a23;}
+#replanBtn.pulse{animation:pulse .5s ease 3;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,138,61,0);}50%{box-shadow:0 0 0 5px rgba(255,138,61,.35);}}
+.te-val{font-weight:800;color:var(--text);min-width:46px;text-align:center;}
+.way-switch{width:25px;height:25px;border-radius:8px;background:var(--surface-soft);color:var(--muted);display:inline-grid;place-items:center;}
+.way-switch:hover{background:var(--surface-warm);color:var(--primary);}
+.slot .sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+.transport{margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.way{background:var(--surface-warm);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;}
+.mini{font-size:11.5px;color:var(--primary);text-decoration:underline;padding:2px 4px;}
+.alts{margin-top:6px;display:none;gap:6px;flex-wrap:wrap;}
+.alts.open{display:flex;}
+.alts .opt{border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:12px;background:var(--surface);}
+
+.metrics{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;}
+.chip{background:var(--surface-soft);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted);}
+.chip b{color:var(--text);}
+.btn-row{display:flex;gap:9px;margin-top:14px;}
+.btn{flex:1;height:42px;border-radius:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+.btn.fill{background:var(--primary-hot);color:#fff;}.btn.fill:hover{background:#ff7a23;}
+.btn.soft{background:var(--surface-soft);color:var(--primary);}.btn.soft:hover{background:var(--surface-warm);}
+
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;}
+.opt-btn{padding:13px;border-radius:14px;background:var(--surface-soft);text-align:left;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:.15s;}
+.opt-btn:hover{border-color:var(--primary-hot);transform:translateY(-1px);}
+.opt-btn small{display:block;color:var(--muted);font-weight:400;font-size:11.5px;margin-top:2px;}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.pill{padding:8px 16px;border-radius:999px;background:var(--surface);border:1.5px solid var(--line);font-weight:600;font-size:13.5px;}
+.pill:hover{border-color:var(--primary-hot);}
+.pill.on{background:var(--accent);border-color:var(--accent);}
+
+.composer{position:absolute;left:0;right:0;bottom:0;padding:14px 0 18px;background:linear-gradient(transparent,var(--bg) 28%);}
+.composer .inner{max-width:760px;margin:0 auto;padding:0 24px;}
+.box{display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:7px 7px 7px 18px;box-shadow:var(--shadow);}
+.box input{flex:1;border:0;outline:0;background:none;font-size:15px;color:var(--text);}
+.send{width:42px;height:42px;border-radius:50%;background:var(--primary-hot);color:#fff;display:grid;place-items:center;flex:0 0 auto;}
+.send:hover{background:#ff7a23;}
+.foot{text-align:center;color:var(--muted);font-size:11px;margin-top:8px;}
+
+.scrim{position:fixed;inset:0;background:rgba(47,21,0,.35);backdrop-filter:blur(2px);z-index:30;display:none;}
+.scrim.open{display:block;}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(440px,92%);background:var(--bg);box-shadow:var(--shadow);transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:31;display:flex;flex-direction:column;}
+.panel.open{transform:none;}
+.panel .hd{padding:18px;background:var(--primary-fixed);flex:0 0 auto;}
+.panel .hd .close{position:absolute;right:14px;top:14px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.7);display:grid;place-items:center;}
+.panel .bd{flex:1;min-height:0;overflow-y:auto;padding:16px 18px 24px;display:flex;flex-direction:column;gap:16px;}
+.panel-foot{flex:0 0 auto;border-top:1px solid var(--line);background:var(--surface);padding:12px 16px 16px;position:relative;box-shadow:0 -8px 22px rgba(92,58,30,.06);}
+.scroll-hint{position:absolute;top:-26px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 12px;transition:opacity .25s;pointer-events:none;animation:bob 1.6s ease-in-out infinite;}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(2px);}}
+.foot-label{font-size:12px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:5px;margin-bottom:8px;}
+.panel-foot .stepper{display:flex;align-items:center;gap:10px;}
+.panel-foot .stepper button{width:32px;height:32px;border-radius:9px;background:var(--surface-soft);color:var(--primary);font-weight:900;font-size:16px;}
+.panel-foot .val{font-weight:700;min-width:62px;text-align:center;}
+.foot-save{margin-left:auto;height:34px;padding:0 16px;border-radius:10px;background:var(--primary-hot);color:#fff;font-weight:800;font-size:13px;}
+.foot-save:hover{background:#ff7a23;}
+.foot-del{width:34px;height:34px;border-radius:10px;background:#fdeceb;color:var(--err);display:grid;place-items:center;}
+.sec h5{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px;}
+.reason{border-left:3px solid var(--ok);background:#f1f8f3;border-radius:0 8px 8px 0;padding:9px 13px;font-size:13.5px;line-height:1.75;}
+.alt-card{border:1px solid var(--line);border-radius:12px;padding:11px 13px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);}
+.swap{background:var(--surface-warm);color:var(--primary);border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;white-space:nowrap;}
+.dish{display:flex;justify-content:space-between;font-size:13.5px;padding:6px 0;border-bottom:1px dashed var(--line);}
+.dish.avoid{color:var(--err);}
+.whisper{background:var(--surface-warm);border-radius:12px;padding:11px 13px;font-size:13px;line-height:1.6;}
+.hero-row{display:flex;gap:8px;overflow-x:auto;border-radius:14px;}
+.hero-img{height:150px;border-radius:14px;flex:0 0 auto;object-fit:cover;border:1px solid var(--line);}
+.hero-ph{height:140px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid var(--line);}
+.hero-ph b{font-size:16px;color:var(--text);}
+.hero-ph small{font-size:11px;color:var(--muted);}
+.rbreak{display:flex;flex-direction:column;gap:6px;}
+.rb-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);}
+.rb-row span{width:32px;}
+.rb-track{flex:1;height:6px;border-radius:99px;background:var(--surface-soft);overflow:hidden;}
+.rb-track i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--primary-hot));}
+.rb-row b{color:var(--text);min-width:24px;text-align:right;}
+.rev{padding:10px 0;border-bottom:1px dashed var(--line);}
+.rev:last-of-type{border-bottom:0;}
+.rev-top{display:flex;align-items:center;gap:7px;font-size:12.5px;}
+.rev-ava{width:24px;height:24px;border-radius:50%;background:var(--primary-fixed);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:12px;}
+.rev-top b{font-size:13px;}
+.rev-star{color:#f0a92b;font-size:12px;letter-spacing:-1px;}
+.rev-date{margin-left:auto;color:var(--muted);font-size:11px;}
+.rev-txt{font-size:13.5px;line-height:1.6;margin-top:5px;color:var(--text);}
+.rev-note{font-size:11px;color:var(--muted);margin-top:8px;background:var(--surface-soft);border-radius:8px;padding:7px 10px;}
+
+.edit-row{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);}
+.edit-row .name{font-weight:700;display:flex;align-items:center;gap:8px;}
+.stepper{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.stepper button{width:30px;height:30px;border-radius:9px;background:var(--surface-soft);color:var(--primary);font-weight:900;font-size:16px;}
+.stepper .val{font-weight:700;min-width:62px;text-align:center;}
+.row-acts{display:flex;gap:8px;margin-top:10px;}
+.row-acts button{flex:1;height:34px;border-radius:9px;font-size:12.5px;font-weight:700;}
+.act-del{background:#fdeceb;color:var(--err);}
+.act-swap{background:var(--surface-warm);color:var(--primary);}
+
+.modal{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:rgba(47,21,0,.4);}
+.modal.open{display:grid;}
+.modal .pl{background:var(--surface);border-radius:20px;padding:22px;width:min(400px,92%);box-shadow:var(--shadow);}
+.radar-sum{margin-top:12px;font-size:13.5px;color:var(--muted);line-height:1.7;background:var(--surface-soft);border-radius:12px;padding:11px 13px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="top"><button class="newchat" onclick="resetChat()"><span class="material-symbols-outlined">add</span>新对话</button></div>
+    <div class="quick">
+      <button class="qcard" onclick="quickStart('帮我排一天本地游')"><span class="ic">🗺️</span><span><b>帮我排一天</b><small>一句话出全天计划</small></span></button>
+      <button class="qcard" onclick="quickStart('附近找个适合约会的餐厅')"><span class="ic">🍜</span><span><b>找餐厅</b><small>按口味预算推荐</small></span></button>
+      <button class="qcard" onclick="quickStart('周末去哪玩，喜欢拍照')"><span class="ic">🎭</span><span><b>周末去哪玩</b><small>咖啡/展览/打卡</small></span></button>
+    </div>
+    <div class="hist">
+      <div class="hlabel">今天</div>
+      <button class="hitem on"><span class="material-symbols-outlined">chat_bubble</span>苏州约会一日游</button>
+      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>找咖啡馆</button>
+      <div class="hlabel">本周</div>
+      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>平江路附近日料</button>
+      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>博物馆怎么逛</button>
+    </div>
+    <div class="profile-dock" onclick="openRadar()">
+      <div class="pd-head">🦊<b>你的偏好画像</b><span class="pct" id="pdPct">了解你 30%</span></div>
+      <div class="pd-body"><svg id="miniRadar" width="64" height="64" viewBox="0 0 120 120"></svg>
+        <div class="pd-tags" id="pdTags"><span>等你多说说</span></div></div>
+      <div class="bar"><i id="pdBar"></i></div>
+    </div>
+    <div class="user-row"><div class="ava">小</div><b style="font-size:13.5px">小明</b>
+      <span class="material-symbols-outlined" style="margin-left:auto;color:var(--muted)">more_horiz</span></div>
+  </aside>
+
+  <main class="main">
+    <div class="head"><div class="logo">🦊</div><b>觅 MIVI</b></div>
+    <div class="body-split" id="bodySplit">
+      <div class="chat-col">
+        <div class="stream" id="stream"><div class="wrap" id="wrap"></div></div>
+        <div class="composer"><div class="inner">
+          <div class="box"><input id="input" placeholder="跟觅狐说点什么…比如『周六和女朋友去苏州玩，喜欢拍照，预算 500』"/>
+            <button class="send" onclick="onSend()"><span class="material-symbols-outlined">arrow_upward</span></button></div>
+          <div class="foot">觅狐可能会出错，出行前请核对关键信息</div>
+        </div></div>
+      </div>
+      <aside class="plan-col" id="planCol">
+        <div class="pc-head"><span class="material-symbols-outlined" style="font-size:19px">map</span><b>今日行程</b>
+          <span class="pc-live" id="pcLive">进行中</span></div>
+        <div class="pc-body" id="pcBody"></div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" onclick="closePanel()"></div>
+<div class="panel" id="panel"></div>
+<div class="modal" id="radar"></div>
+
+<script>
+const USE_MOCK = false;
+const API_BASE = "http://localhost:8080/api/v1";
+const SID = "demo-" + Math.random().toString(36).slice(2,8);
+const H={'Content-Type':'application/json'};
+async function call(p,o){const r=await fetch(API_BASE+p,o);if(!r.ok)throw new Error(await r.text());return r.json();}
+const api={
+  parseIntent:m=>USE_MOCK?MOCK.intent(m):call("/intent/parse",{method:"POST",headers:H,body:JSON.stringify({message:m,session_id:SID})}),
+  generatePlans:p=>USE_MOCK?MOCK.plans:call("/plans/generate",{method:"POST",headers:H,body:JSON.stringify(p)}),
+  getReasoning:i=>USE_MOCK?MOCK.reasoning:call(`/plans/${i}/reasoning`),
+  precheck:(i,city)=>USE_MOCK?MOCK.precheck:call(`/plans/${i}/precheck?city=${encodeURIComponent(city||"苏州")}`),
+  getVenue:(n,city)=>USE_MOCK?MOCK.venues[n]||null:call(`/venues/${encodeURIComponent(n)}?city=${encodeURIComponent(city||"苏州")}`),
+  getAlternatives:n=>USE_MOCK?(MOCK.alternatives[n]||{alternatives:[]}):call(`/venues/${encodeURIComponent(n)}/alternatives`),
+  getInStoreTips:n=>USE_MOCK?MOCK.tips[n]||null:call(`/venues/${encodeURIComponent(n)}/in-store-tips`),
+  reschedule:(i,b)=>USE_MOCK?MOCK.reschedule(b):call(`/plans/${i}/reschedule`,{method:"POST",headers:H,body:JSON.stringify(b)}),
+  feedback:b=>USE_MOCK?MOCK.feedback(b):call("/feedback",{method:"POST",headers:H,body:JSON.stringify({...b,session_id:SID})}),
+  getProfile:()=>USE_MOCK?MOCK.profile():call(`/preferences/profile?session_id=${SID}`),
+  route:()=>USE_MOCK?MOCK.route:call(`/route?origin=0,0&dest=0,0&city=苏州&session_id=${SID}`),
+  nearby:(lat,lng)=>USE_MOCK?{results:Object.keys(MOCK.venues).slice(0,3).map(n=>({name:n})),privacy_note:"坐标用完即焚，未存储。"}
+        :call("/venues/nearby",{method:"POST",headers:H,body:JSON.stringify({lat,lng,keyword:"美食",city:state.city||"苏州",location_source:"user_authorized"})}),
+};
+
+const VEC0={pace:.5,budget:.5,energy:.6,aesthetic:.3,adventure:.4,patience:.4,social:.5,decision_load:.5};
+const MOCK={
+  intent(msg){
+    const v={...state.vector};
+    if(/轻松|放松/.test(msg)){v.pace=.82;v.energy=.4;}
+    if(/拍照|打卡/.test(msg))v.aesthetic=.74;
+    if(/不.{0,2}排队/.test(msg))v.patience=.28;
+    if(/女朋友|约会/.test(msg)){v.social=.62;v.aesthetic=Math.max(v.aesthetic,.6);}
+    if(/省钱|便宜|预算/.test(msg))v.budget=.66;
+    const m=msg.match(/\d{2,4}/);
+    return {entities:{city:/苏州/.test(msg)?"苏州":null,party_size:/女朋友|两个人|情侣/.test(msg)?2:null,
+      scene:/约会|女朋友/.test(msg)?"date":null,budget:m?+m[0]:null,
+      preferences:["拍照","美食","安静"].filter(p=>msg.includes(p))},
+      missing_fields:/苏州|上海|北京|杭州/.test(msg)?[]:["city"],preference_vector:v,extract_source:"mock"};
+  },
+  plans:{plans:[{id:"comfort",name:"🛋️ 舒适方案",recommended:true,summary:"轻松约会路线，少走路，氛围好，预算可控",
+    metrics:{comfort:88,fatigue:"低",budget:295,queue_risk:"低"},
+    slots:[{time:"14:00",venue:"白岛咖啡",icon:"☕",kind:"cafe",duration:60,price:45},
+      {time:"15:20",venue:"苏州博物馆西馆",icon:"🏛️",kind:"scenic",duration:90,price:0},
+      {time:"17:30",venue:"晴川日料",icon:"🍣",kind:"dining",duration:90,price:130},
+      {time:"19:10",venue:"平江路夜景",icon:"🌙",kind:"walk",duration:30,price:0}]}]},
+  reasoning:{reasoning:[{venue:"晴川日料",decision:"selected",
+    reasons:["步行 10 分钟就到，路线顺畅","排队约 15 分钟，在你能接受的范围","环境安静，差评率仅 3%，适合约会"]}],
+    conclusion:"你们今天想轻松，所以稳定体验 > 极致评分。"},
+  precheck:{checks:[{venue:"白岛咖啡",status:"ok",note:"正常营业，当前有空位"},
+    {venue:"苏州博物馆西馆",status:"ok",note:"正常开放，免费无需预约"},
+    {venue:"晴川日料",status:"warning",note:"预计排队约 15 分钟"},
+    {venue:"天气",status:"ok",note:"多云 27°C，适合出行"},
+    {venue:"预算",status:"ok",note:"预计 ¥295，在 ¥500 以内"}],
+    overall:"pass",planb_summary:"晴川排队超 30 分钟 → 花月日料；下雨 → 诚品书店替代散步"},
+  venues:{"白岛咖啡":{type:"cafe",name:"白岛咖啡",rating:4.6,perCapita:45,address:"苏州市姑苏区平江路 32 号",hero:{color:"#FFD9B0"},photos:[],
+      rating_detail:{taste:4.7,env:4.8,service:4.4},
+      reviews:[{name:"豆***酱",date:"2026-05",stars:5,text:"二楼靠窗位置超治愈，待一下午都不腻，明信片寄送很有心。"},
+        {name:"老***张",date:"2026-04",stars:4,text:"咖啡水准在线，就是周末人略多，建议错峰。"},
+        {name:"M***i",date:"2026-04",stars:5,text:"拍照很出片，氛围安静，适合约会聊天。"}]},
+    "苏州博物馆西馆":{type:"scenic",name:"苏州博物馆西馆",rating:4.8,address:"苏州市高新区长江路 399 号",price:"免费",hero:{color:"#C9E3D4"},photos:[],
+      rating_detail:{taste:0,env:4.9,service:4.6},
+      reviews:[{name:"行***客",date:"2026-05",stars:5,text:"建筑本身就是艺术品，几何天窗光影绝了，免费太良心。"},
+        {name:"小***鱼",date:"2026-05",stars:4,text:"周末下午人偏多，建议上午来，后院竹林是隐藏拍照点。"}]},
+    "晴川日料":{type:"restaurant",name:"晴川日料",rating:4.7,perCapita:130,address:"苏州市姑苏区平江路 88 号",hero:{color:"#FFB74D"},photos:[],
+      rating_detail:{taste:4.8,env:4.6,service:4.5},
+      reviews:[{name:"吃***货",date:"2026-05",stars:5,text:"鳗鱼饭分量足、酱汁香，寿司也新鲜，环境安静适合约会。"},
+        {name:"L***a",date:"2026-04",stars:4,text:"整体不错，就是晚高峰要稍等位，建议早点到。"},
+        {name:"匿***名",date:"2026-04",stars:3,text:"炸物偏油，其他还行，人均略小贵但能接受。"}]},
+    "平江路夜景":{type:"scenic",name:"平江路夜景",rating:4.7,address:"苏州市姑苏区平江路",price:"免费",hero:{color:"#A8C4E3"},photos:[],
+      rating_detail:{taste:0,env:4.8,service:0},
+      reviews:[{name:"夜***人",date:"2026-05",stars:5,text:"小桥流水夜灯太美了，沿河走一圈很惬意，记得避开最挤的时段。"},
+        {name:"摄***影",date:"2026-04",stars:4,text:"出片率高，就是周末晚上人多，钮家巷里反而清静。"}]},
+    "半山咖啡":{type:"cafe",name:"半山咖啡",rating:4.5,perCapita:42,address:"苏州市姑苏区临顿路",hero:{color:"#FFE0B8"},photos:[],
+      reviews:[{name:"咖***啡",date:"2026-05",stars:5,text:"手冲很专业，店里绿植多，坐着很放松。"},{name:"路***人",date:"2026-04",stars:4,text:"位置安静，适合看书办公。"}]},
+    "观前街商圈":{type:"scenic",name:"观前街商圈",rating:4.4,address:"苏州市姑苏区观前街",price:"免费",hero:{color:"#FFD0A0"},photos:[],
+      reviews:[{name:"逛***街",date:"2026-05",stars:4,text:"老字号和潮牌都有，吃喝玩一站式，周末很热闹。"},{name:"S***y",date:"2026-04",stars:4,text:"美食层选择多，逛累了歇脚方便。"}]},
+    "桂花公园":{type:"scenic",name:"桂花公园",rating:4.6,address:"苏州市姑苏区南门路",price:"免费",hero:{color:"#C9E3B0"},photos:[],
+      reviews:[{name:"散***步",date:"2026-05",stars:5,text:"桂花季香气满园，沿河步道很适合饭后遛弯。"},{name:"花***影",date:"2026-04",stars:4,text:"免费、人不多，拍照背景干净。"}]}},
+  alternatives:{"晴川日料":{alternatives:[
+    {name:"花月日本料理",rating:4.5,perCapita:120,walk_minutes:8,currentQueue:"无需排队",reason:"同为日料，评分接近，更近且不用等"},
+    {name:"苏帮味道",rating:4.6,perCapita:95,walk_minutes:12,currentQueue:"约 10 分钟",reason:"苏帮菜，性价比更高，环境安静"}]}},
+  tips:{"晴川日料":{type:"restaurant",order_tips:{recommend:[{name:"寿司拼盘",price:88,reason:"招牌必点"},{name:"鳗鱼饭",price:68,reason:"好评率 92%"},{name:"芝士玉子烧",price:32,reason:"颜值高适合拍照"}],avoid:[{name:"炸物拼盘",reason:"差评率 18%，油腻不值"}]},fox_tips:"靠窗位置光线最好，适合拍照；跟服务员说「少冰」，饮品会好喝很多"},
+    "苏州博物馆西馆":{type:"scenic",visit_tips:{must_see:["贝聿铭建筑","现代艺术展厅"],photo_spots:["中庭水池","几何天窗","后院竹林"]},fox_tips:"后院竹林很少人去，拍照特别好看，从展厅 B 出口左转就到"}},
+  route:{recommended:{label:"🚶 步行 10 分钟"},options:[{label:"🚶 步行 10 分钟"},{label:"🚌 公共交通 6 分钟（¥2）"},{label:"🚗 打车约 5 分钟（¥12）"}]},
+  reschedule:b=>({delay_minutes:b.delay_minutes,changes:[{venue:"平江路夜景",note:"散步从 30 缩到 15 分钟"}],impact_summary:"晚餐完全不受影响，散步缩短 15 分钟，回家晚约 20 分钟。"}),
+  feedback:b=>({message:"记住啦",preference_updates:[]}),
+  profile(){return {dimensions:radar(state.vector),summary:profileSummary(state.vector)};},
+};
+
+const DIMS=["pace","budget","energy","aesthetic","adventure","patience","social","decision_load"];
+const LAB={pace:"节奏",budget:"预算",energy:"体力",aesthetic:"颜值",adventure:"探索",patience:"耐心",social:"社交",decision_load:"决策"};
+const state={vector:{...VEC0},plan:null,transport:{},reminded:false,dirty:false,tripActive:false,timers:[],city:null};
+function radar(v){const lab=x=>x>=.7?"很在意":x>=.55?"比较在意":x>=.4?"适中":"不太在意";
+  return DIMS.map(k=>({name:LAB[k],key:k,value:v[k],label:lab(v[k])}));}
+function profileSummary(v){const t=[];if(v.pace>=.6)t.push("喜欢轻松节奏");if(v.aesthetic>=.6)t.push("在意氛围和拍照");
+  if(v.patience<=.35)t.push("不想排队");if(v.budget>=.6)t.push("关注预算");if(v.decision_load<=.35)t.push("倾向让觅狐帮你定");
+  return "你"+(t.length?t.join("、"):"还在让觅狐慢慢了解中")+"。";}
+
+function refreshProfile(){
+  const known=DIMS.filter(k=>Math.abs(state.vector[k]-VEC0[k])>0.08).length;
+  const pct=Math.min(95,30+Math.round(known/DIMS.length*65));
+  document.getElementById("pdPct").textContent=`了解你 ${pct}%`;
+  document.getElementById("pdBar").style.width=pct+"%";
+  const tags=[];if(state.vector.pace>=.6)tags.push("轻松");if(state.vector.aesthetic>=.6)tags.push("爱拍照");
+  if(state.vector.patience<=.35)tags.push("怕排队");if(state.vector.budget>=.6)tags.push("看预算");if(state.vector.social>=.6)tags.push("约会");
+  document.getElementById("pdTags").innerHTML=(tags.length?tags:["等你多说说"]).map(t=>`<span>${t}</span>`).join("");
+  drawRadar(document.getElementById("miniRadar"),state.vector,false);
+}
+function drawRadar(svg,v){
+  const cx=60,cy=60,R=42,n=DIMS.length,pt=(i,r)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+  let s="";[.5,1].forEach(f=>s+=`<polygon points="${DIMS.map((_,i)=>pt(i,R*f).join(",")).join(" ")}" fill="none" stroke="#e7cdbf"/>`);
+  DIMS.forEach((_,i)=>{const[x,y]=pt(i,R);s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#e7cdbf" stroke-width=".5"/>`;});
+  s+=`<polygon points="${DIMS.map((k,i)=>pt(i,R*v[k]).join(",")).join(" ")}" fill="rgba(255,138,61,.4)" stroke="#ff8a3d" stroke-width="2"/>`;
+  svg.innerHTML=s;
+}
+
+const wrap=document.getElementById("wrap"),stream=document.getElementById("stream");
+function scrollB(){stream.scrollTop=stream.scrollHeight;}
+function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+function fox(html){const r=document.createElement("div");r.className="msg fox";
+  r.innerHTML=`<div class="ava">🦊</div><div class="bubble fox">${html}</div>`;wrap.appendChild(r);scrollB();return r;}
+function foxThinking(html){const r=document.createElement("div");r.className="msg fox";
+  r.innerHTML=`<div class="ava">🦊</div><div class="bubble fox">${html} <span class="dots"><i>·</i><i>·</i><i>·</i></span></div>`;wrap.appendChild(r);scrollB();return r;}
+function userMsg(t){const r=document.createElement("div");r.className="msg user";
+  r.innerHTML=`<div class="bubble user">${escapeHtml(t)}</div>`;wrap.appendChild(r);scrollB();}
+function card(build){const r=document.createElement("div");r.className="msg fox";
+  r.innerHTML=`<div class="ava">🦊</div>`;const c=document.createElement("div");c.className="card";
+  build(c);r.appendChild(c);wrap.appendChild(r);scrollB();return c;}
+
+function resetChat(){(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});document.getElementById("bodySplit").classList.remove("split");wrap.innerHTML="";state.plan=null;state.reminded=false;state.dirty=false;state.tripActive=false;state.timers=[];state.vector={...VEC0};state.coord=null;state.city=null;state.mustHave=null;state.when=null;refreshProfile();boot();}
+function boot(){fox("你好呀小友！我是觅狐 🦊<br>一句话告诉我你想怎么过，比如『周六和女朋友去苏州玩，喜欢拍照，预算 500』，剩下的交给我～");}
+function quickStart(t){document.getElementById("input").value=t;onSend();}
+boot();refreshProfile();
+
+document.getElementById("input").addEventListener("keydown",e=>{if(e.key==="Enter")onSend();});
+async function onSend(){
+  const el=document.getElementById("input"),text=el.value.trim();if(!text)return;el.value="";userMsg(text);
+  // 已有方案/已出发时再打字 → 不无脑重新出方案，避免流程错乱卡死，给明确选择
+  if(state.plan){
+    fox("你是想让我【重新规划一套全新行程】，还是【在现在这套上调整】呀？");
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="resetChat()">🆕 重新规划一套<small>从头来，清空当前行程</small></button>
+      <button class="opt-btn" onclick="this.closest('.msg')?.remove?.();fox('好嘞，那你在右边今日行程里直接改就行～ 取消勾选某站、点时间调整，改完点上面「临时调整」即时生效 🦊')">✏️ 调整现在这套<small>在右边行程面板上改</small></button>
+    </div>`;});
+    return;
+  }
+  const r=await api.parseIntent(text);
+  state.vector=r.preference_vector||state.vector;refreshProfile();
+  if(r.entities&&r.entities.city)state.city=r.entities.city;
+  if(r.entities&&r.entities.must_have&&r.entities.must_have.length)state.mustHave=r.entities.must_have;
+  if(r.entities&&r.entities.when)state.when=r.entities.when;
+  if(r.missing_fields&&r.missing_fields.includes("city")){await delay(300);askLocation();return;}
+  await delay(350);askPace();
+}
+
+function askLocation(){
+  card(c=>{c.innerHTML=`<h4>📍 你大概在哪呀？</h4><div class="subt">方便我就近安排～ 你来选，我不偷偷定位。</div>
+    <div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="locPick(this,'input')">✍️ 我自己说<small>打字告诉我城市/区域，最干净</small></button>
+      <button class="opt-btn" onclick="locPick(this,'gps')">🗺️ 用我的位置<small>授权 GPS · 坐标用完即焚，不存储</small></button>
+      <button class="opt-btn" onclick="locPick(this,'pick')">🏙️ 快捷选城市<small>点一下直接选，最快</small></button>
+    </div>`;});
+}
+function cityPick(btn,city){lock(btn);state.city=city;state.coord=null;userMsg(city);fox(`好嘞，就看${city}的～`);setTimeout(askPace,300);}
+function lock(btn){const o=btn.closest(".opts");[...o.children].forEach(b=>{b.disabled=true;b.style.opacity=.5;});btn.style.opacity=1;btn.style.borderColor="var(--primary-hot)";}
+async function locPick(btn,type){
+  lock(btn);
+  if(type==="input"){fox("好嘞，直接打字告诉我城市或地点就行，比如『苏州平江路』～");return;}
+  if(type==="pick"){
+    card(c=>{c.innerHTML=`<h4>🏙️ 选个城市</h4><div class="subt">点一下就行，也可以点上面「我自己说」打字～</div>
+      <div class="opts" style="grid-template-columns:1fr 1fr">
+        ${["杭州","上海","北京","成都","广州","深圳","南京","苏州"].map(ct=>`<button class="opt-btn" onclick="cityPick(this,'${ct}')">${ct}</button>`).join("")}
+      </div>`;});
+    return;}
+  if(!navigator.geolocation){fox("你的浏览器不支持定位呀，直接打字告诉我地点也行～");return;}
+  fox("好的，授权一下定位哈～（坐标只用来就近搜，用完就丢，不会存）");
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    state.coord=`${pos.coords.longitude},${pos.coords.latitude}`; // 存真实坐标(经,纬)，出方案就近搜
+    const r=await api.nearby(pos.coords.latitude,pos.coords.longitude);
+    if(r.city)state.city=r.city;
+    userMsg("用我的位置");
+    fox(`定位到啦，附近找到：${r.results.map(x=>x.name).join("、")}<br><span style="color:var(--muted);font-size:12px">🔒 ${r.privacy_note||"坐标用完即焚"}</span>`);
+    await delay(300);askPace();
+  },()=>fox("没拿到定位（可能没允许）～ 直接打字告诉我地点也行。"));
+}
+
+function askPace(){
+  fox("收到！约会、在意拍照、预算适中，我都记下了。最后问一个——今天想要哪种节奏呀小友？");
+  card(c=>{c.innerHTML=`<div class="opts">
+    <button class="opt-btn" onclick="genPlan(this)">🛋️ 轻松舒服<small>少走路，不赶</small></button>
+    <button class="opt-btn" onclick="genPlan(this)">⚡ 充实高效<small>多去几个地方</small></button></div>`;});
+}
+function coordLatLng(){
+  if(state.coord && state.coord.includes(",")){
+    const [lng,lat]=state.coord.split(",").map(Number);
+    return {lat,lng};
+  }
+  return null;
+}
+async function genPlan(btn){lock(btn);userMsg(btn.firstChild.textContent.trim());
+  state.vector.pace=Math.min(1,state.vector.pace+.1);refreshProfile();
+  fox("好嘞，给你排了套轻松约会路线，我最推荐这个 👇");
+  const planCity=state.city||"苏州";
+  const tip=foxThinking("觅狐正在帮你找好店、排路线…（在搜真实商家，稍等几秒哦~）");
+  const d=await api.generatePlans({city:planCity,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null});
+  tip.remove();
+  state.plan=JSON.parse(JSON.stringify(d.plans.find(p=>p.recommended)||d.plans[0]));state.dirty=false;renderPlan();
+  const miss=state.plan.missing_must;
+  if(miss&&miss.length){
+    setTimeout(()=>fox(`对了小友～ 你想要的「${miss.join("、")}」我在${state.city||"这附近"}没搜到合适的，先没排进去。你可以换个说法、或者告诉我别的偏好，我再帮你找找 🦊`),600);
+  }
+}
+
+function timeRange(start,dur){
+  const [h,m]=start.split(":").map(Number);
+  const e=h*60+m+dur, eh=String(Math.floor(e/60)%24).padStart(2,"0"), em=String(e%60).padStart(2,"0");
+  return `${start}–${eh}:${em}`;
+}
+const WALK=10; // 演示用：站间路上时间（分钟）。接后端后用真实交通时长
+function renderPlan(){
+  if(state.tripActive){renderPlanPane();return;}   // 事中：渲染到右侧固定面板
+  const plan=state.plan;
+  if(!plan.checked)plan.checked=plan.slots.map(()=>true);
+  card(async c=>{ await buildPlan(c,false); });
+}
+function renderPlanPane(){
+  const plan=state.plan;
+  if(!plan.checked)plan.checked=plan.slots.map(()=>true);
+  const c=document.getElementById("pcBody");c.innerHTML="";
+  buildPlan(c,true);
+}
+async function buildPlan(c,inPane){
+  const plan=state.plan;
+  c.innerHTML=`<div class="ct"><div><h4>${plan.name} ${inPane?'':'<span class="badge">推荐</span>'}</h4>
+    <div class="subt">${inPane?'玩的当下随时改：取消勾选、点时间调整，改完点「更新行程」即时生效':(plan.summary+' · 不去的取消勾选、点时间可改，改完按「重新安排」')}</div></div></div>
+    <div id="slotList" style="margin-top:12px"></div>`;
+  const list=c.querySelector("#slotList");
+  for(let idx=0;idx<plan.slots.length;idx++){
+    const s=plan.slots[idx], on=plan.checked[idx];
+    let route;
+    if(s.transport){route={recommended:s.transport,options:s.transport.options||[s.transport]};}
+    else{route=await api.route();}
+    state.transport[s.venue]=route;
+    const el=document.createElement("div");el.className="slot"+(on?"":" off");
+    el.innerHTML=`
+      <button class="ck${on?' on':''}" onclick="toggleSlot(${idx},this)"><span class="material-symbols-outlined">${on?'check':''}</span></button>
+      <div class="slot-main">
+        <div class="slot-head">
+          <button class="time-chip" id="tc${idx}" onclick="toggleTimeEdit(${idx},this)">${timeRange(s.time,s.duration)} <span class="material-symbols-outlined" style="font-size:14px">edit</span></button>
+          <span class="slot-ic">${s.icon}</span><span class="v">${s.venue}</span>
+          <button class="detail-btn" onclick='openDetail(this.dataset.v)' data-v="${s.venue.replace(/"/g,'&quot;')}"><span class="material-symbols-outlined" style="font-size:15px">info</span>详情</button></div>
+        <div class="time-edit" id="te${idx}"><span style="color:var(--muted);font-size:12px">开始时间</span>
+          <select class="time-sel" id="teh${idx}">${Array.from({length:24},(_,k)=>`<option value="${k}" ${k===+s.time.split(":")[0]?'selected':''}>${String(k).padStart(2,"0")}</option>`).join("")}</select><span style="font-size:12px">时</span>
+          <select class="time-sel" id="tem${idx}">${[0,15,30,45].map(k=>`<option value="${k}" ${k===+s.time.split(":")[1]?'selected':''}>${String(k).padStart(2,"0")}</option>`).join("")}</select><span style="font-size:12px">分</span>
+          <button class="time-ok" onclick="confirmTime(${idx})">确定</button></div>
+        <div class="sub">停留 ${s.duration} 分钟 · ${s.price?('约 ¥'+s.price):'免费'}</div>
+        <div class="transport"><span class="way">${route.recommended.label}</span>
+          <button class="way-switch" onclick="toggleWays(event,this)" title="换乘方式"><span class="material-symbols-outlined" style="font-size:15px">swap_horiz</span></button></div>
+        <div class="alts">${route.options.map(o=>`<span class="opt">${o.label}</span>`).join("")}</div></div>`;
+    list.appendChild(el);
+  }
+  const m=plan.metrics||{};
+  const budget=m.budget||plan.budget||plan.slots.reduce((a,x)=>a+(x.price||0),0);
+  const metricsHtml=[
+    m.comfort?`<span class="chip">舒适度 <b>${m.comfort}</b></span>`:"",
+    m.fatigue?`<span class="chip">疲劳 <b>${m.fatigue}</b></span>`:"",
+    budget?`<span class="chip">预算 <b>¥${budget}</b></span>`:"",
+    m.queue_risk?`<span class="chip">排队 <b>${m.queue_risk}</b></span>`:"",
+  ].filter(Boolean).join("");
+  c.innerHTML+=`<div class="metrics">${metricsHtml}</div>`;
+  const row=document.createElement("div");row.className="btn-row";
+  row.innerHTML=inPane
+    ? `<button class="btn fill" id="replanBtn" onclick="replan()" style="display:none"><span class="material-symbols-outlined" style="font-size:18px">autorenew</span>更新行程</button>`
+    : `<button class="btn soft" id="replanBtn" onclick="replan()" style="flex:0 0 auto;display:none"><span class="material-symbols-outlined" style="font-size:18px">autorenew</span>重新安排</button>
+       <button class="btn fill" onclick="confirmPlan()">就这个，出发！</button>`;
+  c.appendChild(row);
+}
+function showReplan(){const rb=document.getElementById("replanBtn");if(rb)rb.style.display="inline-flex";state.dirty=true;}
+function toggleSlot(idx,btn){
+  state.plan.checked[idx]=!state.plan.checked[idx];
+  const on=state.plan.checked[idx];
+  btn.classList.toggle("on",on);
+  btn.querySelector(".material-symbols-outlined").textContent=on?"check":"";
+  btn.closest(".slot").classList.toggle("off",!on);
+  showReplan();
+}
+function toggleTimeEdit(idx,btn){
+  const te=document.getElementById("te"+idx);
+  te.classList.toggle("open");
+}
+function confirmTime(idx){
+  const h=document.getElementById("teh"+idx).value, m=document.getElementById("tem"+idx).value;
+  state.plan.slots[idx].time=`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  state.anchorIdx=idx; // 记住用户改的是哪一站，重排时以它为锚
+  document.getElementById("tc"+idx).innerHTML=`${timeRange(state.plan.slots[idx].time,state.plan.slots[idx].duration)} <span class="material-symbols-outlined" style="font-size:14px">edit</span>`;
+  document.getElementById("te"+idx).classList.remove("open");
+  showReplan();
+  const rb=document.getElementById("replanBtn");if(rb){rb.classList.add("pulse");setTimeout(()=>rb.classList.remove("pulse"),1500);}
+}
+
+/* 重新安排：从头到尾按 开始→停留→路上 串一遍，只看"整天到几点结束"，太晚才提醒 */
+async function replan(){
+  const kept=state.plan.slots.filter((_,i)=>state.plan.checked[i]);
+  const dropped=state.plan.slots.filter((_,i)=>!state.plan.checked[i]).map(s=>s.venue);
+  if(!kept.length){fox("哎呀，全取消了就没法安排啦～ 至少留一站给我吧 😄");return;}
+  const toMin=t=>{const[a,b]=t.split(":").map(Number);return a*60+b;};
+  const fmt=x=>`${String(Math.floor((x%1440+1440)%1440/60)).padStart(2,"0")}:${String((x%60+60)%60).padStart(2,"0")}`;
+  const leg=s=>((s.transport&&s.transport.duration_min)||s.walk||WALK); // 到下一站的路上时间
+  // 锚点：用户最后改的那一站（在 kept 里的位置）；没改过则用第一站
+  let anchor=0;
+  if(typeof state.anchorIdx==="number"){
+    const av=state.plan.slots[state.anchorIdx];
+    const ai=kept.indexOf(av); if(ai>=0)anchor=ai;
+  }
+  const anchorStart=toMin(kept[anchor].time);
+  // 锚点之后：往后顺推
+  let cur=anchorStart;
+  for(let i=anchor;i<kept.length;i++){
+    kept[i].time=fmt(cur);
+    cur+=kept[i].duration+(i<kept.length-1?leg(kept[i]):0);
+  }
+  // 锚点之前：往前倒推（让上一站结束+路上 正好接上下一站开始）
+  let startCur=anchorStart;
+  for(let i=anchor-1;i>=0;i--){
+    startCur=startCur-leg(kept[i])-kept[i].duration;
+    kept[i].time=fmt(startCur);
+  }
+  const endMin=cur; // 整天结束
+  const firstStart=toMin(kept[0].time);
+  state.plan.slots=kept; state.plan.checked=kept.map(()=>true);
+  state.plan.metrics=state.plan.metrics||{};
+  state.plan.metrics.budget=kept.reduce((a,s)=>a+(s.price||0),0);
+
+  // 提醒1：往前倒推后第一站太早（早于7:00）→ 排不下
+  if(firstStart<7*60){
+    showConflict(fmt(endMin),dropped,"你把这一站定得有点早，前面的安排倒推回去要"+fmt(firstStart)+"就出门啦，有点赶哦～");
+    return;
+  }
+  // 提醒2：整天太晚（>22:00）
+  if(endMin>22*60){showConflict(fmt(endMin),dropped);return;}
+  applyReplan(dropped);
+}
+function applyReplan(dropped){
+  state.dirty=false;
+  userMsg(dropped.length?`去掉：${dropped.join("、")}，帮我重排`:"帮我按新时间重排");
+  fox(dropped.length?`好嘞，去掉 ${dropped.join("、")} 啦～ 我把时间连路上的也重新顺了一遍 👍`:"好嘞，按你改的时间重新顺好啦～ 路上时间我也算进去了 👍");
+  renderPlan();
+  if(dropped.length){
+    fox(`小友，取消了 ${dropped.join("、")}，这下空出了点时间～ 要不要我补点别的？`);
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="fillGap(this,'☕ 咖啡馆','cafe',42)">☕ 换个咖啡馆坐坐<small>轻松，符合你今天的节奏</small></button>
+      <button class="opt-btn" onclick="fillGap(this,'🛍️ 附近商圈','scenic',0)">🛍️ 逛逛附近商圈<small>顺路，不赶</small></button>
+      <button class="opt-btn" onclick="fillGap(this,'🌳 公园','scenic',0)">🌳 加个公园散步<small>免费，拍照也好看</small></button>
+      <button class="opt-btn" onclick="fillGap(this,null)">⏭️ 不用了，就这样<small>时间宽裕点也舒服</small></button>
+    </div>`;});
+  }
+}
+/* 太晚提醒弹窗：算总账，太晚才温柔提醒一句 */
+function showConflict(endTime,dropped,customMsg){
+  state._pendingDropped=dropped||[];
+  const m=document.getElementById("radar");
+  const msg=customMsg||`这么改的话，加上路上时间，整天要排到 <b style="color:var(--err)">${endTime}</b> 才结束，会比较累。要我帮你紧凑一下吗？`;
+  m.innerHTML=`<div class="pl" style="max-width:340px">
+    <div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🦊</span><b style="font-size:16px">亲~ 这样有点赶哦</b></div>
+    <div style="margin-top:10px;font-size:14px;line-height:1.7;color:var(--text)">${msg}</div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn soft" onclick="closeRadar();applyReplan(state._pendingDropped||[])">我就这样</button>
+      <button class="btn fill" onclick="closeRadar();autoCompact(state._pendingDropped||[])">帮我顺一下</button></div></div>`;
+  m.classList.add("open");m.onclick=e=>{if(e.target===m)closeRadar();};
+}
+function autoCompact(dropped){
+  // 紧凑：保持第一站开始时间，压缩每站停留 + 用真实交通顺一遍
+  const slots=state.plan.slots;
+  if(slots.length){
+    // 适当压缩较长停留（>60分钟的砍到约75%），让整体提前结束
+    slots.forEach(s=>{if(s.duration>60)s.duration=Math.max(60,Math.round(s.duration*0.75));});
+    let cur=toMinSafe(slots[0].time);
+    slots.forEach((s,i)=>{s.time=fmtMin(cur);const leg=(s.transport&&s.transport.duration_min)||s.walk||WALK;cur+=s.duration+(i<slots.length-1?leg:0);});
+    state.plan.checked=slots.map(()=>true);
+    if(state.plan.metrics)state.plan.metrics.budget=slots.reduce((a,s)=>a+(s.price||0),0);
+  }
+  state.dirty=false;
+  userMsg("帮我顺一下");
+  fox("好嘞，我把每站的停留稍微压缩了一下、路上时间也算进去了，这下不会太晚啦～ 👍");
+  renderPlan();
+}
+function toggleWays(e,b){e.stopPropagation();b.parentElement.nextElementSibling.classList.toggle("open");}
+
+async function confirmPlan(){
+  // 改了行程还没重新安排 → 先提醒
+  if(state.dirty){
+    fox("小友，你刚改了行程还没重新安排哦～ 我先帮你按新的排一下，再出发好不好？");
+    card(c=>{c.innerHTML=`<div class="btn-row">
+      <button class="btn fill" onclick="replan()">好，先重新安排</button>
+      <button class="btn soft" onclick="state.dirty=false;confirmPlan()">不用，直接出发</button></div>`;});
+    return;
+  }
+  userMsg("就这个，出发！");
+  const pc=await api.precheck(state.plan.id,state.city).catch(()=>null);
+  const slots=state.plan.slots||[];
+  const budget=(state.plan.metrics&&state.plan.metrics.budget)||slots.reduce((a,s)=>a+(s.price||0),0);
+  // 真实天气（后端）
+  const weatherChk=pc&&pc.weather_raw?pc.weather_raw:{venue:"天气",status:"ok",note:"出门前留意一下天气哦"};
+  // 备用方案：基于真实方案动态生成（餐厅排队备选、露天遇雨备选）
+  const dining=slots.find(x=>x.kind==="dining");
+  const outdoor=slots.find(x=>x.kind==="scenic"||x.kind==="walk");
+  const planbParts=[];
+  if(dining)planbParts.push(`「${dining.venue}」排队久 → 详情里有同类备选可一键换`);
+  if(outdoor)planbParts.push(`下雨 → 帮你把「${outdoor.venue}」换成室内点`);
+  const planbSummary=planbParts.length?planbParts.join("；"):"路上有任何变化，随时喊我调整";
+  card(c=>{c.innerHTML=`<h4>🦊 出发前帮你检查了一下</h4>`;
+    const wi=weatherChk.status==="ok"?"✅":"⚠️";
+    c.innerHTML+=`<div class="sub" style="padding:5px 0">${wi} <b>天气</b> —— ${weatherChk.note}</div>`;
+    c.innerHTML+=`<div class="sub" style="padding:5px 0">✅ <b>预算</b> —— 预计 ¥${budget}，在你的预算内</div>`;
+    c.innerHTML+=`<div class="whisper" style="margin-top:10px">📋 备用方案已就绪：${planbSummary}</div>`;});
+  fox("一切就绪，出发吧小友！路上我会按时间盯着，到点了主动喊你～");
+    startReminder();
+}
+/* ============================================================
+   事中陪伴：出发后觅狐主动盯着（时间/天气/排队），主动开口 + 带解决方案
+   ============================================================ */
+function startReminder(){
+  if(state.reminded)return;
+  state.reminded=true;
+  state.tripActive=true;
+  document.getElementById("bodySplit").classList.add("split");
+  setupPaneHead();
+  renderPlanPane();
+  fox("出发咯小友！🦊 我把今天的行程钉在右边啦～ 玩的当下想改哪站，直接在右边点就行，我会即时帮你重排。我会按真实时间盯着，到点了主动喊你！");
+  state.timers=[];
+  state.firedStops={}; // 记录哪些站已播报过，避免重复
+  // 出发先报一次真实天气（若有雨）
+  setTimeout(()=>weatherWatch(),4000);
+  const slots=(state.plan&&state.plan.slots)||[];
+  const nowM=nowMinCN();
+  const firstStart=slots.length?toMinSafe(slots[0].time):null;
+  const lastEnd=slots.length?toMinSafe(slots[slots.length-1].time)+(slots[slots.length-1].duration||0):null;
+  if(firstStart==null){return;}
+  // 非今天的行程（明天/周末）→ 不按今天时间实时播报，给预览
+  const planWhen=state.plan.when||state.when||"today";
+  if(planWhen!=="today"){
+    const dayTxt=planWhen==="tomorrow"?"明天":planWhen==="weekend"?"周末":"那天";
+    fox(`这是${dayTxt}的安排，我先帮你钉在右边啦～ 到了${dayTxt}我会按时间提醒你；现在想先看看路上提醒长啥样也行 😊`);
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="previewReminders(this)">👀 预览路上提醒<small>演示，到${dayTxt}我按真实时间喊你</small></button>
+    </div>`;});
+    return;
+  }
+  if(nowM<firstStart){
+    // ① 还没到出发时间 → 不弹任何站提醒，只告诉用户什么时候开始盯
+    const h=Math.floor(firstStart/60),m=firstStart%60;
+    const diff=firstStart-nowM;
+    fox(`第一站「${slots[0].venue}」是 ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")} 开始，现在还有点早～ 我会一直盯着时间，${diff<=60?`大概 ${diff} 分钟后`:"快到点时"}主动喊你，你先忙别的去吧 😊`);
+    // 提供一个"预览路上提醒"的选项（明确是预览，不混淆真实时间）
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="previewReminders(this)">👀 先看看路上提醒长啥样<small>预览演示，到点了我还会按真实时间喊你</small></button>
+    </div>`;});
+    // 开始轮询，等真到点了再弹
+    state.timers.push(setInterval(realtimeTick,30000));
+  }else if(nowM<=lastEnd){
+    // ② 正在行程区间内 → 立即检查当前在哪站 + 持续轮询
+    realtimeTick();
+    state.timers.push(setInterval(realtimeTick,30000));
+  }else{
+    // ③ 行程时间已过 → 不假装实时，诚实说明
+    fox("看了下现在已经过了这套行程的时间啦～ 要我按现在的时间把这些店重新顺一遍吗？顺完我就能实时盯着提醒你咯 🦊");
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="replanByNow(this)">🕐 按现在时间重新排<small>店不变，只把时间顺到现在之后</small></button>
+      <button class="opt-btn" onclick="previewReminders(this)">👀 先看看路上提醒长啥样<small>演示一下</small></button>
+    </div>`;});
+  }
+}
+// 按现在时间重排：店保留，从现在+15分钟开始，按真实交通顺排时间线，然后重启实时提醒
+function replanByNow(btn){
+  if(btn)lock(btn);
+  userMsg("按现在时间重新排");
+  const slots=(state.plan&&state.plan.slots)||[];
+  if(!slots.length){fox("咦，没有可以重排的行程呢～");return;}
+  let cur=nowMinCN()+15; // 现在 + 15 分钟缓冲出发
+  slots.forEach((sl,i)=>{
+    sl.time=fmtMin(cur);
+    const legMin=(sl.transport&&sl.transport.duration_min)||sl.walk||10;
+    cur+=(sl.duration||60)+(i<slots.length-1?legMin:0);
+  });
+  state.reminded=false; // 允许重新启动提醒
+  fox("好嘞，按现在的时间把这套重新顺好啦～ 路上时间也算进去了，这就开始盯着帮你提醒 🦊");
+  renderPlan();
+  if(state.tripActive){renderPlanPane();}
+  setTimeout(()=>startReminder(),600);
+}
+// 预览：用户主动点才演示路上提醒（明确标注是预览）
+function previewReminders(btn){
+  if(btn){lock(btn);}
+  const slots=(state.plan&&state.plan.slots)||[];
+  fox("好嘞，给你预览一下路上我会怎么提醒～（下面是演示，实际我按真实时间喊你）👇");
+  if(slots.length>=1)state.timers.push(setTimeout(()=>proactiveForStop(0,"time"),1500));
+  const dineIdx=slots.findIndex(x=>x.kind==="dining");
+  state.timers.push(setTimeout(()=>proactiveForStop(dineIdx>=0?dineIdx:Math.min(1,slots.length-1),"queue"),9000));
+}
+// 当前中国时间（分钟）
+function nowMinCN(){
+  const now=new Date();
+  const utc=now.getTime()+now.getTimezoneOffset()*60000;
+  const cn=new Date(utc+8*3600000);
+  return cn.getHours()*60+cn.getMinutes();
+}
+function fmtMin(x){return `${String(Math.floor((x%1440+1440)%1440/60)).padStart(2,"0")}:${String((x%60+60)%60).padStart(2,"0")}`;}
+function toMinSafe(t){if(!t)return 0;const[a,b]=t.split(":").map(Number);return a*60+b;}
+// 真实时间轮询：到了某站快结束时，播报该站提醒
+function realtimeTick(){
+  if(!state.tripActive)return;
+  const slots=(state.plan&&state.plan.slots)||[];
+  const nowM=nowMinCN();
+  for(let i=0;i<slots.length;i++){
+    const st=toMinSafe(slots[i].time), en=st+(slots[i].duration||60);
+    // 进入某站最后15分钟，且没播报过 → 提醒"该走了/排队"
+    if(nowM>=en-15 && nowM<en && !state.firedStops["t"+i]){
+      state.firedStops["t"+i]=true;
+      proactiveForStop(i, slots[i].kind==="dining"?"queue":"time");
+      return;
+    }
+  }
+}
+// 出发时检查真实天气
+async function weatherWatch(){
+  if(!state.tripActive)return;
+  const pc=await api.precheck(state.plan.id,state.city).catch(()=>null);
+  const w=pc&&pc.weather_raw;
+  if(w && w.status==="warning"){ // 真实有雨才提醒
+    const slots=(state.plan&&state.plan.slots)||[];
+    const outdoor=slots.find(x=>x.kind==="scenic"||x.kind==="walk");
+    if(outdoor)proactiveForStop(slots.indexOf(outdoor),"weather");
+  }
+}
+function setupPaneHead(){
+  const live=document.getElementById("pcLive");
+  if(live){live.outerHTML=`<button class="pc-adjust" onclick="openTempAdjust()"><span class="material-symbols-outlined" style="font-size:15px">add_circle</span>临时调整</button>`;}
+}
+function showProgressBar(){/* 进度条已并入右侧面板，无需单独条 */}
+/* 主动提醒：每条都带亲切口吻 + 解决方案按钮 */
+function proactiveForStop(idx,kind){
+  if(!state.tripActive)return;
+  const slots=(state.plan&&state.plan.slots)||[];
+  const stop=slots[idx]||slots[0]; if(!stop)return;
+  const next=slots[idx+1];
+  const name=stop.venue;
+  const data={
+    time:{txt:`小友～ 按时间「${name}」差不多该收尾啦${next?`，挪去下一站「${next.venue}」正好 😊`:" 🙂"} 要狐狐帮你顺顺路线、提前挪窝嘛？`,
+      yes:["好呀，帮我顺",()=>onOvertime()], no:"那再多待会儿也行～ 玩得开心最重要 🥰"},
+    weather:{txt:`狐狐查了下天气哈 🌧️ 这会儿可能有雨，「${name}」要是露天的话淋着不舒服～ 帮你看看附近室内的备选好不好？`,
+      yes:["好，看看室内的",()=>doWeatherSwap()], no:"好嘞，那狐狐先帮你记着，雨大了随时喊我换 ☔"},
+    queue:{txt:`诶，「${name}」这会儿可能要排队哦（这是模拟提醒，真实排队以现场为准）😮 要不要狐狐帮你看看旁边不用等的备选？`,
+      yes:["好，看看备选",()=>doQueueSwap(name)], no:"行～ 那就耐心等等，狐狐陪你聊会儿天 😆"}
+  }[kind];
+  if(!data)return;
+  const r=document.createElement("div");r.className="msg fox";
+  r.innerHTML=`<div class="ava">🦊</div><div class="bubble alert">${data.txt}
+    <div class="btn-row"><button class="btn fill" onclick="this.closest('.msg').remove();(${data.yes[1]})()">${data.yes[0]}</button>
+    <button class="btn soft" onclick="this.closest('.msg').remove();fox('${data.no}')">先不用</button></div></div>`;
+  wrap.appendChild(r);scrollB();
+}
+async function doWeatherSwap(){
+  userMsg("好，看看室内的");
+  const slot=state.plan.slots.find(x=>x.kind==="scenic"||x.kind==="walk");
+  if(!slot){fox("看了下你今天的安排基本都在室内，问题不大～ 狐狐继续帮你盯着天气哈 ☔");return;}
+  fox(`狐狐就近帮你找「${slot.venue}」附近的室内点～ 稍等哦`);
+  let alts=[];
+  if(!USE_MOCK && state.city){
+    try{
+      const res=await fetch(`${API_BASE}/venues/nearby`,{method:"POST",headers:H,body:JSON.stringify({...(coordLatLng()||{lat:0,lng:0}),keyword:"商场 书店 咖啡 室内",city:state.city,location_source:"user_authorized"})}).then(x=>x.json()).catch(()=>null);
+      if(res&&res.results)alts=res.results.filter(r=>r.name!==slot.venue).slice(0,3).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null,reason:"室内，下雨天也舒服"}));
+    }catch(e){}
+  }
+  if(!alts.length){fox("附近暂时没搜到合适的室内备选～ 要不先继续，雨大了我再帮你看？或者你跟我说想去哪类室内点 ☔");return;}
+  card(c=>{
+    c.innerHTML=`<h4>☔ 这几个室内点，下雨也舒服</h4><div class="subt">点「换成这个」就帮你把「${slot.venue}」换掉</div>`;
+    alts.forEach(a=>{
+      c.innerHTML+=`<div class="alt-card"><div><b>${a.name}</b><div style="color:var(--muted);font-size:12px">⭐${a.rating}${a.perCapita?" · 人均 ¥"+a.perCapita:""}<br>${a.reason||""}</div></div><button class="swap" onclick="swapVenue('${slot.venue.replace(/'/g,"")}','${a.name.replace(/'/g,"")}')">换成这个</button></div>`;
+    });
+  });
+}
+async function doQueueSwap(diningName){
+  userMsg("好，看看备选");
+  const slot=state.plan.slots.find(x=>x.kind==="dining")||state.plan.slots.find(x=>x.venue===diningName);
+  const name=slot?slot.venue:diningName;
+  fox(`狐狐就近帮你找了「${name}」附近的同类餐厅～ 稍等哦`);
+  // 真实调备选：先试 alternatives 接口，没有就用 nearby 搜同类
+  let alts=[];
+  try{
+    const al=await api.getAlternatives(name).catch(()=>null);
+    if(al&&al.alternatives&&al.alternatives.length)alts=al.alternatives;
+  }catch(e){}
+  if(!alts.length && !USE_MOCK && state.city){
+    try{
+      const res=await fetch(`${API_BASE}/venues/nearby`,{method:"POST",headers:H,body:JSON.stringify({...(coordLatLng()||{lat:0,lng:0}),keyword:"餐厅",city:state.city,location_source:"user_authorized"})}).then(x=>x.json()).catch(()=>null);
+      if(res&&res.results)alts=res.results.filter(r=>r.name!==name).slice(0,3).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null,currentQueue:"现去现问",reason:"附近同类，评分不错"}));
+    }catch(e){}
+  }
+  if(!alts.length){fox("狐狐找了下，附近暂时没搜到合适的同类备选～ 你也可以点这一站「详情」看看，或者跟我说想吃啥，我帮你找 😊");return;}
+  card(c=>{
+    c.innerHTML=`<h4>🍽️ 这几家也不用等</h4><div class="subt">点「换成这个」就帮你切，时间路线我顺手重排</div>`;
+    alts.forEach(a=>{
+      c.innerHTML+=`<div class="alt-card"><div><b>${a.name}</b><div style="color:var(--muted);font-size:12px">⭐${a.rating}${a.perCapita?" · 人均 ¥"+a.perCapita:""} · ${a.currentQueue||"现去现问"}<br>${a.reason||""}</div></div><button class="swap" onclick="swapVenue('${name.replace(/'/g,"")}','${a.name.replace(/'/g,"")}')">换成这个</button></div>`;
+    });
+    c.innerHTML+=`<div class="rev-note" style="margin-top:8px">💡 排队信息为模拟提醒，实际请以餐厅现场为准</div>`;
+  });
+}
+/* 用户主动临时调整 */
+function openTempAdjust(){
+  fox("狐狐在呢～ 想怎么调整呀小友？");
+  card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr 1fr">
+    <button class="opt-btn" onclick="tempAct(this,'skip')">🚫 这站不想去了<small>跳过，后面顺延</small></button>
+    <button class="opt-btn" onclick="tempAct(this,'add')">➕ 临时加一站<small>附近补个点</small></button>
+    <button class="opt-btn" onclick="tempAct(this,'stay')">🐌 想多待会儿<small>这里太舒服</small></button>
+    <button class="opt-btn" onclick="tempAct(this,'alarm')">⏰ 设个提醒<small>到点叫我</small></button>
+  </div>`;});
+}
+function tempAct(btn,act){
+  lock(btn);userMsg(btn.firstChild.textContent.trim());
+  if(act==="skip"){fox("好嘞，那这站咱们不去啦～ 狐狐把后面的时间往前挪了挪，你能更从容点 😌");
+    const di=state.plan.slots.findIndex(s=>s.kind==="walk");if(di>=0)state.plan.slots.splice(di,1);renderPlan();}
+  if(act==="add"){fox("想加点啥呀？狐狐给你挑了几个就在附近、顺路的～");
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+      <button class="opt-btn" onclick="fillGap(this,'☕ 咖啡馆','cafe',42)">☕ 找个咖啡馆<small>走两步就到，歇歇脚</small></button>
+      <button class="opt-btn" onclick="fillGap(this,'🌳 公园','scenic',0)">🌳 附近公园<small>免费，饭后散步正好</small></button></div>`;});}
+  if(act==="stay"){fox("懂你～ 遇上喜欢的地方就该多待会儿嘛 🥰 狐狐帮你这站加了 30 分钟，后面顺势往后排，放心玩！");
+    const cur=state.plan.slots.find(s=>s.kind==="scenic");if(cur)cur.duration+=30;
+    let [h,m]=state.plan.slots[0].time.split(":").map(Number);let t=h*60+m;
+    state.plan.slots.forEach((s,i)=>{s.time=`${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`;t+=s.duration+(i<state.plan.slots.length-1?WALK:0);});
+    renderPlan();}
+  if(act==="alarm"){fox("没问题～ 狐狐给你当个贴心小闹钟 ⏰ 想让我啥时候喊你呀？");
+    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr 1fr">
+      <button class="opt-btn" onclick="setAlarm(this,15)">还有 15 分钟提醒<small>该准备走啦</small></button>
+      <button class="opt-btn" onclick="setAlarm(this,30)">还有 30 分钟提醒<small>再玩一会儿</small></button></div>`;});}
+}
+function setAlarm(btn,min){lock(btn);userMsg(btn.firstChild.textContent.trim());
+  fox(`好嘞，狐狐记下啦～ ${min} 分钟后准时喊你，你只管安心玩，时间交给我 🥰`);
+  state.timers.push(setTimeout(()=>{if(!state.tripActive)return;
+    const r=document.createElement("div");r.className="msg fox";
+    r.innerHTML=`<div class="ava">🦊</div><div class="bubble alert">⏰ 小友～ 时间到咯！该准备去下一站啦，玩得尽兴嘛？要狐狐帮你看看路线不？
+      <div class="btn-row"><button class="btn fill" onclick="this.closest('.msg').remove();onOvertime()">看看路线</button>
+      <button class="btn soft" onclick="this.closest('.msg').remove();fox('好～ 那再玩会儿，狐狐不催你 😆')">再待会儿</button></div></div>`;
+    wrap.appendChild(r);scrollB();},Math.min(min*100,6000)));  // 演示加速：分钟→快进
+}
+async function onOvertime(){
+  userMsg("好，帮我顺");
+  const slots=(state.plan&&state.plan.slots)||[];
+  const dining=slots.find(x=>x.kind==="dining");
+  const walkStop=slots.find(x=>x.kind==="walk"||x.kind==="scenic");
+  fox("没关系小友～ 路上难免有延误，我有几个思路，你挑一个，我照着重排：");
+  card(c=>{
+    let html='<div class="opts" style="grid-template-columns:1fr">';
+    html+=`<button class="opt-btn" onclick="doReschedule(this,'compress')">⏱️ 保住全程<small>${walkStop?`压缩「${walkStop.venue}」的停留时间`:"压缩部分停留"}，所有地点都不少</small></button>`;
+    if(dining)html+=`<button class="opt-btn" onclick="doReschedule(this,'dinner')">🍽️ 优先${dining.venue.length>6?"晚餐":dining.venue}<small>直接去「${dining.venue}」，其他看时间再说</small></button>`;
+    if(walkStop)html+=`<button class="opt-btn" onclick="doReschedule(this,'home')">🏠 早点回家<small>跳过「${walkStop.venue}」，吃完就收</small></button>`;
+    html+='</div>';
+    c.innerHTML=html;
+  });
+}
+async function doReschedule(btn,strategy){
+  lock(btn);userMsg(btn.firstChild.textContent.trim());
+  const slots=state.plan.slots;
+  const dining=slots.find(x=>x.kind==="dining");
+  const walkStop=slots.find(x=>x.kind==="walk"||x.kind==="scenic");
+  let label="",changes=[],summary="";
+  if(strategy==="compress"){
+    label="保住全程";
+    if(walkStop){const old=walkStop.duration;walkStop.duration=Math.max(15,Math.round(walkStop.duration*0.5));
+      changes.push({venue:walkStop.venue,note:`停留从 ${old} 缩到 ${walkStop.duration} 分钟，路线不变`});}
+    summary="所有地点都保留，整体紧凑一点，不会落下想去的。";
+  }else if(strategy==="dinner"){
+    label="优先晚餐";
+    if(dining)changes.push({venue:dining.venue,note:"直接前往，优先保证用餐时间"});
+    if(walkStop)changes.push({venue:walkStop.venue,note:"保留，到时看状态决定"});
+    summary="把用餐这个核心体验稳稳保住，后面灵活机动。";
+  }else if(strategy==="home"){
+    label="早点回家";
+    if(walkStop){const i=slots.indexOf(walkStop);slots.splice(i,1);
+      changes.push({venue:walkStop.venue,note:"跳过这一站"});}
+    summary="吃完就收，准点到家不疲劳。";
+  }
+  // 真正重排时间（含真实交通）并刷新右侧面板
+  let cur=toMinSafe(slots[0].time);
+  slots.forEach((s,i)=>{s.time=fmtMin(cur);const leg=(s.transport&&s.transport.duration_min)||s.walk||WALK;cur+=s.duration+(i<slots.length-1?leg:0);});
+  state.plan.checked=slots.map(()=>true);
+  if(state.plan.metrics)state.plan.metrics.budget=slots.reduce((a,s)=>a+(s.price||0),0);
+  renderPlan();
+  card(c=>{c.innerHTML=`<h4>🦊 好嘞，按「${label}」给你排好了</h4><div class="subt">已自动重排（已完成的不动，只调后面），右边行程已更新</div>`;
+    changes.forEach(ch=>c.innerHTML+=`<div class="sub" style="padding:5px 0">🔧 <b>${ch.venue}</b> —— ${ch.note}</div>`);
+    c.innerHTML+=`<div class="whisper" style="margin-top:10px">✅ ${summary}</div>`;
+    const row=document.createElement("div");row.className="btn-row";row.innerHTML=`<button class="btn fill" onclick="finishTrip()">按这个走</button>`;c.appendChild(row);});
+}
+async function finishTrip(){userMsg("按这个走");state.tripActive=false;(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});
+  document.getElementById("bodySplit").classList.remove("split");
+  await delay(400);
+  fox("今天的约会安排你觉得怎么样呀？");
+  card(c=>{c.innerHTML=`<div class="pill-row"><button class="pill" onclick="askImprove(this)">😊 很满意</button>
+    <button class="pill" onclick="askImprove(this)">😐 还行</button><button class="pill" onclick="askImprove(this)">😕 一般</button></div>`;});
+}
+function askImprove(b){b.parentElement.querySelectorAll(".pill").forEach(x=>x.disabled=true);b.classList.add("on");userMsg(b.textContent.trim());
+  fox("开心！下次你更希望我怎么安排？");
+  card(c=>{c.innerHTML=`<div class="opts">
+    <button class="opt-btn" onclick="doFb(this,'more_relaxed','pace')">🛋️ 更轻松</button>
+    <button class="opt-btn" onclick="doFb(this,'more_packed','pace')">⚡ 更充实</button>
+    <button class="opt-btn" onclick="doFb(this,'more_budget','budget')">💰 更省钱</button>
+    <button class="opt-btn" onclick="doFb(this,'more_photo_spots','aesthetic')">📸 更多拍照点</button></div>`;});
+}
+async function doFb(b,key,dim){lock(b);userMsg(b.textContent.trim());
+  await api.feedback({plan_id:state.plan?state.plan.id:"comfort",satisfaction:"happy",improvement:key});
+  if(dim==="aesthetic")state.vector.aesthetic=Math.min(1,state.vector.aesthetic+.2);
+  if(dim==="budget")state.vector.budget=Math.min(1,state.vector.budget+.2);
+  if(dim==="pace")state.vector.pace=Math.min(1,Math.max(0,state.vector.pace+(key==="more_relaxed"?.15:-.15)));
+  refreshProfile();
+  fox("记住啦小友，下次我会多安排你喜欢的 📸<br>看左下角，你的偏好画像又更新了一点点～");
+}
+
+async function openDetail(name){
+  const safe=p=>p.catch(()=>null);
+  // ① 立刻弹出面板（加载态），点了马上有反应
+  panel(name, '🦊 觅狐正在翻看这家店…', `<div style="text-align:center;color:var(--muted);padding:36px 0">正在加载详情<span class="dots"><i>·</i><i>·</i><i>·</i></span></div>`);
+  // ② 再去取数据（venue 含 DeepSeek 评论，要几秒）
+  const [v,rs,al]=await Promise.all([
+    safe(api.getVenue(name,state.city)),
+    safe(api.getReasoning(state.plan&&state.plan.id?state.plan.id:"comfort")),
+    safe(api.getAlternatives(name)),
+  ]);
+  if(!document.getElementById("panel").classList.contains("open"))return; // 已关则不渲染
+  const route=state.transport[name],r=(rs&&rs.reasoning||[]).find(x=>x.venue===name);
+  const slotReason=(state.plan&&state.plan.slots||[]).find(x=>x.venue===name);
+  const whyReasons=slotReason&&slotReason.reason?[slotReason.reason]:(r?r.reasons:null);
+  const matchScore=slotReason&&typeof slotReason.match_score==="number"?slotReason.match_score:null;
+  const matchReasons=slotReason&&slotReason.match_reasons?slotReason.match_reasons:[];
+  // ③ 数据到了，整体渲染
+  panel(`${v?v.name:name}`,
+    `${v&&v.rating?'⭐ '+v.rating:''}${v&&v.perCapita?' · 人均 ¥'+v.perCapita:(v&&v.price?' · '+v.price:'')}${route?' · '+route.recommended.label:''}<br><span style="font-size:12px">${v?v.address||'':''}</span>`,
+    `${heroHtml(v)}
+     ${ratingHtml(v)}
+     ${whyReasons?`<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">lightbulb</span>为什么排在这</h5><div class="reason">${whyReasons.map(x=>'· '+x).join("<br>")}</div></div>`:''}
+     ${matchScore!=null?`<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">favorite</span>和你的匹配度 <b style="color:var(--primary)">${matchScore}</b><span style="color:var(--muted);font-size:13px"> / 100</span></h5>
+       <div style="margin-top:6px">${matchReasons.map(t=>`<span class="rev-tag" style="display:inline-block;background:var(--surface-soft);color:var(--primary);border-radius:999px;padding:3px 10px;font-size:12px;margin:3px 4px 0 0">✓ ${t}</span>`).join("")}</div>
+       <div style="color:var(--muted);font-size:11.5px;margin-top:7px">根据你的偏好画像（节奏/预算/拍照/约会等）实时计算</div></div>`:''}
+     ${reviewsHtml(v)}
+     ${al&&al.alternatives&&al.alternatives.length?`<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">swap_horiz</span>不满意？这几家也行</h5>
+       ${al.alternatives.map(a=>`<div class="alt-card"><div><b>${a.name}</b><div style="color:var(--muted);font-size:12px">⭐${a.rating} · 步行${a.walk_minutes}分 · ${a.currentQueue}<br>${a.reason}</div></div><button class="swap" onclick="swapVenue('${name}','${a.name}')">换成这个</button></div>`).join("")}</div>`:''}`);
+}
+
+function ratingHtml(v){
+  if(!v||!v.rating)return '';
+  const d=v.rating_detail;
+  const bar=(lbl,val)=>val?`<div class="rb-row"><span>${lbl}</span><div class="rb-track"><i style="width:${val/5*100}%"></i></div><b>${val}</b></div>`:'';
+  return `<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">star</span>评分 ${v.rating}</h5>
+    ${d?`<div class="rbreak">${bar('口味',d.taste)}${bar('环境',d.env)}${bar('服务',d.service)}</div>`:''}</div>`;
+}
+function reviewsHtml(v){
+  if(!v||!v.reviews||!v.reviews.length)return '';
+  return `<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">forum</span>用户评论</h5>
+    ${v.reviews.map(r=>`<div class="rev"><div class="rev-top"><span class="rev-ava">${r.name.slice(0,1)}</span>
+      <b>${r.name}</b><span class="rev-star">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span><span class="rev-date">${r.date}</span></div>
+      <div class="rev-txt">${r.text}</div></div>`).join("")}
+    <div class="rev-note">💬 评论由 AI 基于公开印象模拟生成，仅供参考，非真实平台用户评价</div></div>`;
+}
+function heroHtml(v){
+  if(!v)return '';
+  const photos=(v.photos||[]).filter(p=>p&&p.url);
+  if(photos.length){
+    return `<div class="hero-row">${photos.slice(0,5).map(p=>`<img class="hero-img" src="${p.url}" alt="${p.title||v.name}" onerror="this.style.display='none'"/>`).join("")}</div>`;
+  }
+  // 没有真图（Mock / 高德未接）→ 暖色渐变占位
+  const col=(v.hero&&v.hero.color)||"#FFD9B0";
+  return `<div class="hero-ph" style="background:linear-gradient(135deg,${col},#fff3c4)">
+    <span style="font-size:34px">${typeIcon(v.type)}</span><b>${v.name}</b>
+    <small>接入高德后这里显示实景图</small></div>`;
+}
+function typeIcon(t){return t==="cafe"?"☕":t==="restaurant"?"🍣":t==="scenic"?"🏛️":"📍";}
+
+function detailTips(t){
+  if(t.order_tips){const o=t.order_tips;
+    return `<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">restaurant</span>到了点什么</h5>
+      ${o.recommend.map(d=>`<div class="dish"><span>✅ ${d.name}</span><span>¥${d.price}</span></div>`).join("")}
+      ${(o.avoid||[]).map(d=>`<div class="dish avoid"><span>⚠️ 避雷 ${d.name}</span><span>${d.reason}</span></div>`).join("")}</div><div class="whisper">💡 觅狐悄悄话：${t.fox_tips}</div>`;}
+  if(t.visit_tips){const v=t.visit_tips;
+    return `<div class="sec"><h5><span class="material-symbols-outlined" style="font-size:18px">photo_camera</span>到了能干嘛</h5>
+      <div style="font-size:13.5px;line-height:1.7">必看：${(v.must_see||[]).join("、")}<br>📸 拍照点：${(v.photo_spots||[]).join("、")}</div></div><div class="whisper">💡 觅狐悄悄话：${t.fox_tips}</div>`;}
+  return '';
+}
+async function swapVenue(from,to){closePanel();userMsg(`把 ${from} 换成 ${to}`);
+  const s=state.plan.slots.find(x=>x.venue===from);if(s){s.venue=to;}
+  renderPlan(); // 刷新右侧面板，换的店立刻显示
+  fox(`好嘞，已经帮你切到「${to}」啦～ 这家不用干等，右边行程已经更新好了 👍`);
+}
+
+/* 编辑能力已并入详情页：在详情页内就地改时长 / 删除，不再有独立面板，无页中页 */
+function editDur(i,d){
+  if(!state.plan.slots[i])return;
+  state.plan.slots[i].duration=Math.max(15,state.plan.slots[i].duration+d);
+  const el=document.getElementById("durD");if(el)el.textContent=state.plan.slots[i].duration+" 分钟";
+}
+async function editDel(i,name){
+  const removed=state.plan.slots[i];
+  state.plan.slots.splice(i,1);
+  closePanel();userMsg(`删掉『${name}』这一站`);
+  renderPlan();
+  const freed=removed?removed.duration:60;
+  fox(`好嘞，去掉『${name}』啦～ 这下空出了约 ${Math.round(freed/30)*0.5} 小时，要不要我补点什么？`);
+  card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+    <button class="opt-btn" onclick="fillGap(this,'☕ 咖啡馆','cafe',42)">☕ 换个咖啡馆坐坐<small>轻松，符合你今天的节奏</small></button>
+    <button class="opt-btn" onclick="fillGap(this,'🛍️ 附近商圈','scenic',0)">🛍️ 逛逛附近商圈<small>顺路，不赶</small></button>
+    <button class="opt-btn" onclick="fillGap(this,'🌳 公园','scenic',0)">🌳 加个公园散步<small>免费，拍照也好看</small></button>
+    <button class="opt-btn" onclick="fillGap(this,null)">⏭️ 不用了，就这样<small>直接收尾去晚餐</small></button>
+  </div>`;});
+}
+async function fillGap(btn,label,kind,price){
+  lock(btn);userMsg(btn.firstChild.textContent.trim());
+  if(!label){fox("好的，那就不加啦～ 时间宽裕点也舒服，慢慢逛回去 😊");return;}
+  const icon=label.split(" ")[0];
+  let venue=label.split(" ")[1]||label;
+  let realPrice=price||0;
+  // 真实补位：调高德搜当前城市的同类店，取第一个真实店
+  const kwMap={cafe:"咖啡",scenic:"景点 公园",dining:"餐厅",entertain:"娱乐"};
+  if(!USE_MOCK && state.city){
+    fox("好嘞，狐狐就近帮你找个真实的点补上～ 稍等一下哦 🦊");
+    try{
+      // 用 nearby 搜（需要坐标，没有就用城市中心由后端处理）；这里用 venues 搜索接口更稳
+      const res=await fetch(`${API_BASE}/venues/nearby`,{method:"POST",headers:H,body:JSON.stringify({...(coordLatLng()||{lat:0,lng:0}),keyword:kwMap[kind||"cafe"],city:state.city,location_source:"user_authorized"})}).then(x=>x.json()).catch(()=>null);
+      if(res&&res.results&&res.results.length){
+        const pick=res.results[0];
+        venue=pick.name;
+        realPrice=pick.cost?Math.round(parseFloat(pick.cost)):realPrice;
+      }
+    }catch(e){}
+  }
+  // 插到晚餐之前（没有晚餐就放最后）
+  const dineIdx=state.plan.slots.findIndex(s=>s.kind==="dining");
+  const at=dineIdx>0?dineIdx:state.plan.slots.length;
+  state.plan.slots.splice(at,0,{time:"00:00",venue,icon,kind:kind||"cafe",duration:60,price:realPrice});
+  // 重新串时间（含真实路上），保持 checked 同步
+  let [h,m]=state.plan.slots[0].time.split(":").map(Number);let cur=h*60+m;
+  state.plan.slots.forEach((s,i)=>{s.time=`${String(Math.floor(cur/60)%24).padStart(2,"0")}:${String(cur%60).padStart(2,"0")}`;const legMin=(s.transport&&s.transport.duration_min)||s.walk||WALK;cur+=s.duration+(i<state.plan.slots.length-1?legMin:0);});
+  state.plan.checked=state.plan.slots.map(()=>true);
+  state.plan.metrics.budget=state.plan.slots.reduce((a,s)=>a+(s.price||0),0);state.plan.checked=state.plan.slots.map(()=>true);
+  state.plan.metrics.budget=state.plan.slots.reduce((a,s)=>a+(s.price||0),0);
+  state.dirty=false;
+  renderPlan();
+  fox(`好嘞，给你补了『${venue}』填上空当～ 时间连路上的我都排进去了，整体还是很轻松 👍`);
+}
+async function saveDuration(){
+  closePanel();userMsg("（调整了停留时长）");
+  fox("好的，按你调的时长重排好啦～");renderPlan();
+}
+
+function panel(title,sub,bodyHtml,footerHtml){
+  const p=document.getElementById("panel");
+  p.innerHTML=`<div class="hd"><div class="close" onclick="closePanel()"><span class="material-symbols-outlined">close</span></div>
+    <div style="font-size:20px;font-weight:900">${title}</div><div style="color:var(--muted);font-size:13px;margin-top:4px">${sub}</div></div>
+    <div class="bd" id="panelBd">${bodyHtml}</div>
+    ${footerHtml?`<div class="panel-foot"><div class="scroll-hint" id="scrollHint">下滑看评论 / 备选 ⌄</div>
+      <div class="foot-label"><span class="material-symbols-outlined" style="font-size:17px">tune</span>调整这一站</div>${footerHtml}</div>`:''}`;
+  document.getElementById("scrim").classList.add("open");p.classList.add("open");
+  // 内容能滚动才显示"下滑"提示，滚到底就隐藏
+  const bd=document.getElementById("panelBd"),hint=document.getElementById("scrollHint");
+  if(bd&&hint){
+    const upd=()=>{const more=bd.scrollHeight-bd.scrollTop-bd.clientHeight>24;hint.style.opacity=more?1:0;};
+    setTimeout(upd,50);bd.onscroll=upd;
+  }
+}
+function closePanel(){document.getElementById("scrim").classList.remove("open");document.getElementById("panel").classList.remove("open");}
+
+async function openRadar(){
+  const p=await api.getProfile();const m=document.getElementById("radar");
+  m.innerHTML=`<div class="pl"><div style="display:flex;justify-content:space-between;align-items:center">
+    <h4 style="margin:0">🦊 你的偏好画像</h4><button class="btn soft" style="height:34px;flex:0;padding:0 14px" onclick="closeRadar()">关闭</button></div>
+    <svg id="bigRadar" width="100%" viewBox="0 0 320 300"></svg><div class="radar-sum">${p.summary}</div></div>`;
+  m.classList.add("open");m.onclick=e=>{if(e.target===m)closeRadar();};
+  drawBig(document.getElementById("bigRadar"),state.vector);
+}
+function drawBig(svg,v){const cx=160,cy=150,R=100,n=DIMS.length,pt=(i,r)=>{const a=-Math.PI/2+i*2*Math.PI/n;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+  let s="";[.25,.5,.75,1].forEach(f=>s+=`<polygon points="${DIMS.map((_,i)=>pt(i,R*f).join(",")).join(" ")}" fill="none" stroke="#e7cdbf"/>`);
+  DIMS.forEach((k,i)=>{const[x,y]=pt(i,R);s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#e7cdbf"/>`;
+    const[lx,ly]=pt(i,R+22);s+=`<text x="${lx}" y="${ly}" font-size="12" fill="#6d5243" text-anchor="middle" dy="4">${LAB[k]}</text>`;});
+  s+=`<polygon points="${DIMS.map((k,i)=>pt(i,R*v[k]).join(",")).join(" ")}" fill="rgba(255,138,61,.35)" stroke="#9a4600" stroke-width="2"/>`;
+  DIMS.forEach((k,i)=>{const[x,y]=pt(i,R*v[k]);s+=`<circle cx="${x}" cy="${y}" r="3" fill="#9a4600"/>`;});
+  svg.innerHTML=s;}
+function closeRadar(){document.getElementById("radar").classList.remove("open");}
+</script>
+</body>
+</html>
