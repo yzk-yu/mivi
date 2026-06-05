@@ -19,11 +19,11 @@ ACTIVITIES = [
     {"key": "escape",   "triggers": ["密室", "密室逃脱"],                  "search": "密室逃脱",      "strength": 3, "icon": "🔓", "label": "密室逃脱"},
     {"key": "scriptkill","triggers": ["剧本杀"],                          "search": "剧本杀",        "strength": 3, "icon": "🎭", "label": "剧本杀"},
     {"key": "exhibit",  "triggers": ["看展", "展览", "美术馆", "艺术展"],  "search": "展览 美术馆",   "strength": 2, "icon": "🖼️", "label": "展览"},
-    {"key": "bar",      "triggers": ["酒吧", "喝酒", "小酒", "清吧"],      "search": "酒吧",          "strength": 2, "icon": "🍸", "label": "酒吧"},
+    {"key": "bar",      "triggers": ["酒吧", "喝酒", "喝点酒", "喝杯酒", "小酒", "清吧", "酒馆", "微醺", "小酌", "喝一杯", "整两杯", "精酿", "鸡尾酒", "livehouse", "Livehouse"], "search": "酒吧",          "strength": 2, "icon": "🍸", "label": "酒吧"},
     {"key": "bowling",  "triggers": ["保龄球", "打保龄"],                  "search": "保龄球",        "strength": 2, "icon": "🎳", "label": "保龄球"},
     {"key": "gym",      "triggers": ["健身", "健身房"],                    "search": "健身房",        "strength": 2, "icon": "💪", "label": "健身房"},
-    {"key": "coffee",   "triggers": ["咖啡", "喝咖啡", "咖啡馆"],          "search": "咖啡",          "strength": 1, "icon": "☕", "label": "咖啡"},
-    {"key": "tea",      "triggers": ["喝茶", "茶馆", "茶室"],              "search": "茶馆",          "strength": 1, "icon": "🍵", "label": "茶馆"},
+    {"key": "coffee",   "triggers": ["咖啡", "喝咖啡", "咖啡馆", "喝点咖啡", "咖啡店", "喝杯咖啡"], "search": "咖啡",          "strength": 1, "icon": "☕", "label": "咖啡"},
+    {"key": "tea",      "triggers": ["喝茶", "茶馆", "茶室", "喝点茶", "品茶", "茶饮"], "search": "茶馆",          "strength": 1, "icon": "🍵", "label": "茶馆"},
 ]
 
 _BY_LABEL = {a["label"]: a for a in ACTIVITIES}

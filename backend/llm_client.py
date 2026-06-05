@@ -38,15 +38,25 @@ def chat(messages: list[dict], temperature: float = 0.3, json_mode: bool = False
 
 # ── 意图理解：LLM 语义提取（关键词表兜底）──
 INTENT_SYS = (
-    "你是本地生活助手的意图解析器。从用户中文输入里提取结构化信息，"
-    "只输出 JSON，字段：city(城市或null)、party_size(人数或null)、"
-    "scene(date/friends/family/solo或null)、budget(数字或null)、"
-    "preferences(字符串数组，如拍照/美食/安静)、"
-    "must_have(用户明确点名要做的活动或要去的地点类型，字符串数组，可多个；"
-    "如看电影→[\"电影院\"]、又看电影又喝咖啡→[\"电影院\",\"咖啡\"]、唱歌→[\"KTV\"]、"
-    "看展→[\"展览\"]；没有明确点名则为空数组[])、"
-    "when(用户说的日期：today/tomorrow/weekend，或具体如\"周六\"\"6月8日\"；"
-    "没提到则\"today\")。不要多余文字。"
+    "你是本地生活助手的意图解析器。从用户中文输入里提取结构化信息，只输出 JSON，不要多余文字。\n"
+    "字段：\n"
+    "- city：城市或null\n"
+    "- party_size：人数或null\n"
+    "- scene：date/friends/family/solo 或 null\n"
+    "- budget：数字或null\n"
+    "- preferences：字符串数组，描述偏好风格，如 拍照/美食/安静/小众/热闹\n"
+    "- must_have：用户想做的活动 → 归纳成【最适合在地图App里搜索的实体场所类型词】，字符串数组，可多个。\n"
+    "  这是关键：把口语化的「动作/心情/需求」翻译成可以直接搜到店的【地点类型】。例如：\n"
+    "  喝酒/小酌/微醺/想喝两杯/续摊 → \"酒吧\"；唱歌/K歌/想吼两嗓子 → \"KTV\"；\n"
+    "  看电影/想看个片 → \"电影院\"；看展/逛美术馆/艺术 → \"美术馆\"；\n"
+    "  喝咖啡/找个地方坐坐/办公 → \"咖啡馆\"；喝茶/品茶 → \"茶馆\"；\n"
+    "  密室/剧本杀 → 原词；想运动/出出汗 → \"健身房\"；按摩/放松身体/做spa → \"按摩SPA\"；\n"
+    "  带孩子/亲子 → \"亲子乐园\"；逛街购物 → \"商场\"；看书 → \"书店\"；\n"
+    "  夜宵/宵夜 → \"夜宵\"；甜品/下午茶 → \"甜品店\"；遛弯/散步/透气 → \"公园\"。\n"
+    "  规则：①输出的是【名词性的场所类型】不是动作（要\"酒吧\"不要\"喝酒\"）；"
+    "②遇到没列举的需求，也要自己归纳成一个最贴切、能在地图上搜到的场所类型词；"
+    "③用户没点名任何具体活动时给空数组[]；④最多3个，按用户语气里的重视程度排序。\n"
+    "- when：用户说的日期 today/tomorrow/weekend，或具体如\"周六\"\"6月8日\"；没提到则\"today\"。"
 )
 
 
@@ -67,15 +77,28 @@ def parse_intent(text: str, prev_vector: dict | None = None) -> dict:
     if content:
         try:
             entities = json.loads(content)
-            import activities
-            # must_have 规整成按强度排序的 label 列表（DeepSeek 可能返回字符串或数组）
-            entities["must_have"] = activities.normalize(entities.get("must_have"))
+            # must_have：LLM 已归纳成场所类型词，保留其顺序，仅规整格式（去重/限长/兜底类型）
+            entities["must_have"] = _clean_must(entities.get("must_have"))
             return {"entities": entities, "preference_vector": vector, "source": "llm"}
         except json.JSONDecodeError:
             pass
     # 兜底：关键词规则提取
     return {"entities": _keyword_entities(text), "preference_vector": vector, "source": "keyword"}
 
+
+
+def _clean_must(labels) -> list[str]:
+    """规整 LLM 返回的 must_have：统一成列表、去重、最多3个，原样保留 LLM 归纳的场所类型词。"""
+    if not labels:
+        return []
+    if isinstance(labels, str):
+        labels = [labels]
+    out = []
+    for l in labels:
+        l = (l or "").strip()
+        if l and l not in out:
+            out.append(l)
+    return out[:3]
 
 def _keyword_entities(text: str) -> dict:
     import re

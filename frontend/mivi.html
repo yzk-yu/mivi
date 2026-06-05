@@ -41,6 +41,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;}
 .hitem{display:flex;gap:8px;align-items:center;padding:9px 10px;border-radius:11px;font-size:13px;color:var(--text);width:100%;text-align:left;}
 .hitem:hover{background:var(--surface-soft);}
 .hitem.on{background:var(--surface-warm);font-weight:700;}
+.hempty{padding:8px 10px;font-size:12px;color:var(--muted);line-height:1.5;}
 .hitem .material-symbols-outlined{font-size:17px;color:var(--muted);}
 
 .profile-dock{margin:8px 12px 12px;border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:12px;box-shadow:var(--shadow-soft);cursor:pointer;transition:.15s;}
@@ -236,12 +237,9 @@ button{font:inherit;cursor:pointer;border:0;background:none;}
       <button class="qcard" onclick="quickStart('周末去哪玩，喜欢拍照')"><span class="ic">🎭</span><span><b>周末去哪玩</b><small>咖啡/展览/打卡</small></span></button>
     </div>
     <div class="hist">
-      <div class="hlabel">今天</div>
-      <button class="hitem on"><span class="material-symbols-outlined">chat_bubble</span>苏州约会一日游</button>
-      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>找咖啡馆</button>
-      <div class="hlabel">本周</div>
-      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>平江路附近日料</button>
-      <button class="hitem"><span class="material-symbols-outlined">chat_bubble</span>博物馆怎么逛</button>
+      <div class="hlabel">本次会话</div>
+      <div id="histList"></div>
+      <div id="histEmpty" class="hempty">还没有记录～ 出一套方案后，这次对话会出现在这里</div>
     </div>
     <div class="profile-dock" onclick="openRadar()">
       <div class="pd-head">🦊<b>你的偏好画像</b><span class="pct" id="pdPct">了解你 30%</span></div>
@@ -366,7 +364,7 @@ const MOCK={
 
 const DIMS=["pace","budget","energy","aesthetic","adventure","patience","social","decision_load"];
 const LAB={pace:"节奏",budget:"预算",energy:"体力",aesthetic:"颜值",adventure:"探索",patience:"耐心",social:"社交",decision_load:"决策"};
-const state={vector:{...VEC0},plan:null,transport:{},reminded:false,dirty:false,tripActive:false,timers:[],city:null};
+const state={vector:{...VEC0},plan:null,transport:{},reminded:false,dirty:false,tripActive:false,timers:[],city:null,history:[],activeHist:null};
 function radar(v){const lab=x=>x>=.7?"很在意":x>=.55?"比较在意":x>=.4?"适中":"不太在意";
   return DIMS.map(k=>({name:LAB[k],key:k,value:v[k],label:lab(v[k])}));}
 function profileSummary(v){const t=[];if(v.pace>=.6)t.push("喜欢轻松节奏");if(v.aesthetic>=.6)t.push("在意氛围和拍照");
@@ -405,10 +403,84 @@ function card(build){const r=document.createElement("div");r.className="msg fox"
   r.innerHTML=`<div class="ava">🦊</div>`;const c=document.createElement("div");c.className="card";
   build(c);r.appendChild(c);wrap.appendChild(r);scrollB();return c;}
 
-function resetChat(){(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});document.getElementById("bodySplit").classList.remove("split");wrap.innerHTML="";state.plan=null;state.reminded=false;state.dirty=false;state.tripActive=false;state.timers=[];state.vector={...VEC0};state.coord=null;state.city=null;state.mustHave=null;state.when=null;refreshProfile();boot();}
+function histTitle(){
+  const city=state.city||"";
+  const acts=(state.mustHave&&state.mustHave.length)?state.mustHave.slice(0,2).join("·"):"";
+  const t=state.plan&&state.plan.title?state.plan.title:(city+"行程");
+  return t||(city+acts+"一日安排")||"本地生活安排";
+}
+function saveHistory(){
+  // 存一条本次会话快照：标题 + 对话区HTML + plan + 关键state（仅内存，刷新即清，不落库）
+  const snap={
+    id:"h"+Date.now(),
+    title:histTitle(),
+    html:wrap.innerHTML,
+    split:document.getElementById("bodySplit").classList.contains("split"),
+    paneHtml:document.getElementById("pcBody")?document.getElementById("pcBody").innerHTML:"",
+    state:{
+      plan:state.plan?JSON.parse(JSON.stringify(state.plan)):null,
+      vector:{...state.vector}, city:state.city, coord:state.coord,
+      mustHave:state.mustHave, when:state.when, tripActive:state.tripActive,
+      transport:JSON.parse(JSON.stringify(state.transport||{}))
+    }
+  };
+  // 如果当前正处在某条历史里继续操作，则更新它；否则新增
+  if(state.activeHist){
+    const i=state.history.findIndex(h=>h.id===state.activeHist);
+    if(i>=0){snap.id=state.activeHist;state.history[i]=snap;}
+    else state.history.unshift(snap);
+  } else {
+    state.history.unshift(snap);
+  }
+  state.activeHist=snap.id;
+  renderHistory();
+}
+function renderHistory(){
+  const list=document.getElementById("histList");
+  const empty=document.getElementById("histEmpty");
+  if(!list)return;
+  list.innerHTML="";
+  if(!state.history.length){if(empty)empty.style.display="";return;}
+  if(empty)empty.style.display="none";
+  state.history.forEach(h=>{
+    const b=document.createElement("button");
+    b.className="hitem"+(h.id===state.activeHist?" on":"");
+    b.innerHTML=`<span class="material-symbols-outlined">chat_bubble</span>${escapeHtml(h.title)}`;
+    b.onclick=()=>loadHistory(h.id);
+    list.appendChild(b);
+  });
+}
+function escapeHtml(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+function loadHistory(id){
+  const h=state.history.find(x=>x.id===id);
+  if(!h)return;
+  (state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});state.timers=[];
+  // 恢复 state（先恢复，后面重渲染方案要用）
+  state.plan=h.state.plan?JSON.parse(JSON.stringify(h.state.plan)):null;
+  state.vector={...h.state.vector}; state.city=h.state.city; state.coord=h.state.coord;
+  state.mustHave=h.state.mustHave; state.when=h.state.when;
+  state.transport=JSON.parse(JSON.stringify(h.state.transport||{}));
+  state.reminded=false; state.dirty=false; state.tripActive=false;
+  state.activeHist=id;
+  const bs=document.getElementById("bodySplit");
+  // 清空对话区，重新构建一个干净完整的视图：标题提示 + 活的方案卡片
+  bs.classList.remove("split");
+  wrap.innerHTML="";
+  fox(`这是你之前的「${escapeHtml(h.title)}」～ 帮你重新调出来啦 🦊`);
+  if(state.plan){
+    // 用 state.plan 重新渲染一张"活的"完整方案（详情/勾选/出发都可用）
+    renderPlan();
+  } else {
+    fox("这次对话还没生成方案哦，你可以继续告诉我想怎么安排～");
+  }
+  refreshProfile();renderHistory();
+  setTimeout(()=>{wrap.scrollTop=wrap.scrollHeight;},100);
+}
+
+function resetChat(){(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});document.getElementById("bodySplit").classList.remove("split");wrap.innerHTML="";state.plan=null;state.reminded=false;state.dirty=false;state.tripActive=false;state.timers=[];state.vector={...VEC0};state.coord=null;state.city=null;state.mustHave=null;state.when=null;state.activeHist=null;refreshProfile();renderHistory();boot();}
 function boot(){fox("你好呀小友！我是觅狐 🦊<br>一句话告诉我你想怎么过，比如『周六和女朋友去苏州玩，喜欢拍照，预算 500』，剩下的交给我～");}
 function quickStart(t){document.getElementById("input").value=t;onSend();}
-boot();refreshProfile();
+boot();refreshProfile();renderHistory();
 
 document.getElementById("input").addEventListener("keydown",e=>{if(e.key==="Enter")onSend();});
 async function onSend(){
@@ -422,13 +494,17 @@ async function onSend(){
     </div>`;});
     return;
   }
-  const r=await api.parseIntent(text);
-  state.vector=r.preference_vector||state.vector;refreshProfile();
-  if(r.entities&&r.entities.city)state.city=r.entities.city;
-  if(r.entities&&r.entities.must_have&&r.entities.must_have.length)state.mustHave=r.entities.must_have;
-  if(r.entities&&r.entities.when)state.when=r.entities.when;
-  if(r.missing_fields&&r.missing_fields.includes("city")){await delay(300);askLocation();return;}
-  await delay(350);askPace();
+  // 后台并行解析意图（不阻塞），结果回来悄悄更新画像/城市/偏好，用户无感
+  state._parsing=api.parseIntent(text).then(r=>{
+    if(!r)return;
+    state.vector=r.preference_vector||state.vector;refreshProfile();
+    if(r.entities&&r.entities.city)state.city=r.entities.city;
+    if(r.entities&&r.entities.must_have&&r.entities.must_have.length)state.mustHave=r.entities.must_have;
+    if(r.entities&&r.entities.when)state.when=r.entities.when;
+    return r;
+  }).catch(()=>null);
+  // 立刻弹位置询问，不等接口（消除等待）
+  await delay(250);askLocation();
 }
 
 function askLocation(){
@@ -480,9 +556,12 @@ async function genPlan(btn){lock(btn);userMsg(btn.firstChild.textContent.trim())
   fox("好嘞，给你排了套轻松约会路线，我最推荐这个 👇");
   const planCity=state.city||"苏州";
   const tip=foxThinking("觅狐正在帮你找好店、排路线…（在搜真实商家，稍等几秒哦~）");
-  const d=await api.generatePlans({city:planCity,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null});
+  if(state._parsing){try{await state._parsing;}catch(e){}}  // 等后台意图解析完成，确保点名活动/城市已就位
+  const planCity2=state.city||planCity;
+  const d=await api.generatePlans({city:planCity2,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null});
   tip.remove();
   state.plan=JSON.parse(JSON.stringify(d.plans.find(p=>p.recommended)||d.plans[0]));state.dirty=false;renderPlan();
+  saveHistory();
   const miss=state.plan.missing_must;
   if(miss&&miss.length){
     setTimeout(()=>fox(`对了小友～ 你想要的「${miss.join("、")}」我在${state.city||"这附近"}没搜到合适的，先没排进去。你可以换个说法、或者告诉我别的偏好，我再帮你找找 🦊`),600);
@@ -1089,7 +1168,11 @@ async function editDel(i,name){
 }
 async function fillGap(btn,label,kind,price){
   lock(btn);userMsg(btn.firstChild.textContent.trim());
-  if(!label){fox("好的，那就不加啦～ 时间宽裕点也舒服，慢慢逛回去 😊");return;}
+  if(!label){
+    fox("好的，那就不加啦～ 时间宽裕点也舒服 😊");
+    card(c=>{c.innerHTML=`<button class="btn fill" onclick="confirmPlan()">就这个，出发！🦊</button>`;});
+    return;
+  }
   const icon=label.split(" ")[0];
   let venue=label.split(" ")[1]||label;
   let realPrice=price||0;
@@ -1120,6 +1203,7 @@ async function fillGap(btn,label,kind,price){
   state.dirty=false;
   renderPlan();
   fox(`好嘞，给你补了『${venue}』填上空当～ 时间连路上的我都排进去了，整体还是很轻松 👍`);
+  card(c=>{c.innerHTML=`<button class="btn fill" onclick="confirmPlan()">就这个，出发！🦊</button>`;});
 }
 async function saveDuration(){
   closePanel();userMsg("（调整了停留时长）");
