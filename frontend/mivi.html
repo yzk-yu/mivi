@@ -929,10 +929,38 @@ function replanByNow(btn){
 function previewReminders(btn){
   if(btn){lock(btn);}
   const slots=(state.plan&&state.plan.slots)||[];
-  fox("好嘞，给你预览一下路上我会怎么提醒～（下面是演示，实际我按真实时间喊你）👇");
-  if(slots.length>=1)state.timers.push(setTimeout(()=>proactiveForStop(0,"time"),1500));
-  const dineIdx=slots.findIndex(x=>x.kind==="dining");
-  state.timers.push(setTimeout(()=>proactiveForStop(dineIdx>=0?dineIdx:Math.min(1,slots.length-1),"queue"),9000));
+  if(!slots.length){fox("还没有行程可以预览哦～");return;}
+  fox("好嘞，给你演示一下路上我会怎么提醒～ 看完一条点「下一条」继续 👇");
+  setTimeout(()=>previewStep(0),800);
+}
+// 演示用：逐条手动推进，点「下一条」才出下一条
+function previewStep(idx){
+  const slots=(state.plan&&state.plan.slots)||[];
+  if(idx>=slots.length){
+    fox("演示就到这儿啦～ 到了当天，这些提醒我会按真实时间一站一站喊你 🦊");
+    return;
+  }
+  const sl=slots[idx];
+  const kind=(sl.kind==="dining")?"queue":"time";
+  proactiveForStopDemo(idx,kind);
+}
+// 演示版提醒：底部带「下一条」按钮（点了才出下一条），不触发真实换店逻辑
+function proactiveForStopDemo(idx,kind){
+  const slots=(state.plan&&state.plan.slots)||[];
+  const stop=slots[idx]||slots[0]; if(!stop)return;
+  const next=slots[idx+1];
+  const name=stop.venue;
+  const txtMap={
+    time:`小友～ 按时间「${name}」差不多该收尾啦${next?`，挪去下一站「${next.venue}」正好 😊`:" 🙂"}`,
+    queue:`诶，「${name}」这会儿可能要排队哦（演示提醒）😮 真实情况我会帮你看看旁边不用等的备选～`,
+    weather:`狐狐查了下天气 🌧️「${name}」要是露天的话，我会帮你看看附近室内备选～`
+  };
+  const txt=txtMap[kind]||txtMap.time;
+  const isLast=idx>=slots.length-1;
+  const r=document.createElement("div");r.className="msg fox";
+  r.innerHTML=`<div class="ava">🦊</div><div class="bubble alert">${txt}
+    <div class="btn-row"><button class="btn fill" onclick="this.closest('.msg').querySelector('.btn-row').remove();previewStep(${idx+1})">${isLast?"看完啦 ✓":"下一条 👉"}</button></div></div>`;
+  wrap.appendChild(r);scrollB();
 }
 // 当前中国时间（分钟）
 function nowMinCN(){
