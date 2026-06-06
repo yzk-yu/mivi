@@ -86,7 +86,20 @@ button{font:inherit;cursor:pointer;border:0;background:none;}
 .bubble{max-width:80%;padding:11px 15px;border-radius:18px;font-size:14.5px;line-height:1.65;box-shadow:var(--shadow-soft);}
 .bubble.fox{background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:6px;}
 .bubble.user{background:var(--primary-hot);color:#fff;border-bottom-right-radius:6px;font-weight:500;}
-.bubble.alert{background:#fff6ec;border:1px solid #f3d4a8;}
+.bubble.alert{background:#fff6ec;border:1px solid #f3d4a8;transition:background .4s,border-color .4s,box-shadow .4s;}
+.slot-acts{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;}
+.slot-acts .sact{display:inline-flex;align-items:center;gap:3px;font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--line,#eadbc8);background:#fff;color:var(--text,#5a4632);cursor:pointer;transition:all .15s;}
+.slot-acts .sact:hover{background:#fff3e6;border-color:var(--primary);color:var(--primary);}
+.slot-acts .sact .material-symbols-outlined{font-size:15px;}
+.slot-acts .sact.danger:hover{background:#fdecec;border-color:#e06b6b;color:#d84a4a;}
+.swap-picker{margin-top:9px;padding:10px;border-radius:12px;background:#fff8f0;border:1px solid #f3d4a8;}
+.swap-picker .sp-head{font-size:12.5px;color:var(--text,#5a4632);font-weight:600;margin-bottom:8px;display:flex;align-items:center;}
+.swap-picker .sp-x{margin-left:auto;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;}
+.swap-picker .sp-opt{display:flex;flex-direction:column;width:100%;text-align:left;padding:8px 11px;margin-top:5px;border-radius:9px;border:1px solid var(--line,#eadbc8);background:#fff;cursor:pointer;transition:all .15s;}
+.swap-picker .sp-opt:hover{border-color:var(--primary);background:#fff3e6;}
+.swap-picker .sp-opt b{font-size:13.5px;color:var(--text,#5a4632);}
+.swap-picker .sp-opt span{font-size:11.5px;color:var(--muted);margin-top:2px;}
+.bubble.alert.alert-active{background:#ffe3c2;border:1.5px solid var(--primary);box-shadow:0 2px 14px rgba(154,70,0,.18);}
 .trip-bar{flex:1;display:flex;align-items:center;gap:11px;background:linear-gradient(135deg,#fff3c4,#ffe7cf);border:1px solid #f3d4a8;border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-soft);}
 .tb-dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:0 0 auto;animation:tbpulse 1.6s ease-in-out infinite;}
 @keyframes tbpulse{0%,100%{box-shadow:0 0 0 0 rgba(63,143,91,.5);}50%{box-shadow:0 0 0 6px rgba(63,143,91,0);}}
@@ -693,7 +706,12 @@ async function buildPlan(c,inPane){
         <div class="sub">停留 ${s.duration} 分钟 · ${s.price?('约 ¥'+s.price):'免费'}</div>
         <div class="transport"><span class="way">${route.recommended.label}</span>
           <button class="way-switch" onclick="toggleWays(event,this)" title="换乘方式"><span class="material-symbols-outlined" style="font-size:15px">swap_horiz</span></button></div>
-        <div class="alts">${route.options.map(o=>`<span class="opt">${o.label}</span>`).join("")}</div></div>`;
+        <div class="alts">${route.options.map(o=>`<span class="opt">${o.label}</span>`).join("")}</div>
+        ${inPane?`<div class="slot-acts">
+          <button class="sact" onclick="smartSwap(${idx})"><span class="material-symbols-outlined">restaurant</span>换一家</button>
+          <button class="sact" onclick="smartPush(${idx})"><span class="material-symbols-outlined">schedule</span>往后推</button>
+          <button class="sact danger" onclick="smartDrop(${idx})"><span class="material-symbols-outlined">close</span>删掉</button>
+        </div>`:""}</div>`;
     list.appendChild(el);
   }
   const m=plan.metrics||{};
@@ -713,6 +731,73 @@ async function buildPlan(c,inPane){
   c.appendChild(row);
 }
 function showReplan(){const rb=document.getElementById("replanBtn");if(rb)rb.style.display="inline-flex";state.dirty=true;}
+// ===== 每站智能操作（事中面板，点一下直接改+安静重排）=====
+// 换一家：针对"这一站"找同类备选，弹小卡选一个换掉
+async function smartSwap(idx){
+  const slot=state.plan.slots[idx]; if(!slot)return;
+  const name=slot.venue, kind=slot.kind;
+  const kwMap={dining:"餐厅",cafe:"咖啡",scenic:"景点 商场",walk:"公园 景点",ent:"娱乐",bar:"酒吧"};
+  const kw=kwMap[kind]||"餐厅";
+  flashPaneUpdated("正在找附近的…");
+  let alts=[];
+  try{ const al=await api.getAlternatives(name).catch(()=>null); if(al&&al.alternatives&&al.alternatives.length)alts=al.alternatives; }catch(e){}
+  if(!alts.length && !USE_MOCK && state.city){
+    try{
+      const res=await fetch(`${API_BASE}/venues/nearby`,{method:"POST",headers:H,body:JSON.stringify({...(coordLatLng()||{lat:0,lng:0}),keyword:kw,city:state.city,location_source:"user_authorized"})}).then(x=>x.json()).catch(()=>null);
+      if(res&&res.results)alts=res.results.filter(r=>r.name!==name).slice(0,4).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null}));
+    }catch(e){}
+  }
+  if(!alts.length){fox(`「${name}」附近暂时没搜到合适的同类备选～ 你也可以说想换成什么类型 🦊`);return;}
+  // 在对话框弹备选卡片（稳定样式），点「换成这个」→ 换店+右侧更新
+  fox(`帮你找了「${name}」附近的几个备选 👇 点「换成这个」就替换`);
+  card(c=>{
+    c.innerHTML=`<h4>🔄 「${name}」的备选</h4><div class="subt">点「换成这个」就帮你换，右边行程同步更新</div>`;
+    alts.forEach(a=>{
+      c.innerHTML+=`<div class="alt-card"><div><b>${a.name}</b><div style="color:var(--muted);font-size:12px">⭐${a.rating}${a.perCapita?" · 人均 ¥"+a.perCapita:""}</div></div><button class="swap" onclick="swapVenue('${name.replace(/'/g,"")}','${a.name.replace(/'/g,"")}')">换成这个</button></div>`;
+    });
+  });
+}
+function showSwapPicker(idx,fromName,alts,isDemo){
+  const old=document.getElementById("swapPicker"); if(old)old.remove();
+  const box=document.createElement("div"); box.id="swapPicker"; box.className="swap-picker";
+  const dm=isDemo?"true":"false";
+  box.innerHTML=`<div class="sp-head">把「${fromName}」换成 👇 <button class="sp-x" onclick="this.closest('.swap-picker').remove()">✕</button></div>`+
+    alts.map(a=>`<button class="sp-opt" onclick="applySmartSwap(${idx},'${a.name.replace(/'/g,"")}',${dm})"><b>${a.name}</b><span>⭐${a.rating}${a.perCapita?" · 人均¥"+a.perCapita:""}</span></button>`).join("");
+  const slotEl=document.querySelectorAll("#slotList .slot")[idx];
+  if(slotEl)slotEl.appendChild(box); else document.getElementById("pcBody").appendChild(box);
+  box.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function applySmartSwap(idx,toName,isDemo){
+  const slot=state.plan.slots[idx]; if(!slot)return;
+  slot.venue=toName;
+  const p=document.getElementById("swapPicker"); if(p)p.remove();
+  renderPlan(); flashPaneUpdated("已换成 "+toName);
+  fox(`好嘞，已经帮你换成「${toName}」啦～ 右边行程更新好了 👍`);
+  // 演示模式：换完接着下一条提醒
+  if(isDemo&&typeof window._demoSwapNext==="number"){
+    const n=window._demoSwapNext; window._demoSwapNext=undefined;
+    state.timers.push(setTimeout(()=>previewStep(n),1100));
+  }
+}
+// 往后推：这一站及之后整体顺延 15 分钟
+function smartPush(idx){
+  const slot=state.plan.slots[idx]; if(!slot)return;
+  state.anchorIdx=idx;
+  const [h,m]=slot.time.split(":").map(Number);
+  let t=h*60+m+15;
+  slot.time=`${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`;
+  state.dirty=true;
+  if(state.tripActive)setTimeout(()=>replan(),200);
+}
+// 删掉：去掉这一站，安静重排
+function smartDrop(idx){
+  if(!state.plan.slots[idx])return;
+  if((state.plan.checked||[]).filter(Boolean).length<=1){flashPaneUpdated("至少留一站哦～");return;}
+  state.plan.slots.splice(idx,1);
+  if(state.plan.checked)state.plan.checked.splice(idx,1);
+  state.dirty=true;
+  if(state.tripActive)setTimeout(()=>replan(),200);
+}
 function toggleSlot(idx,btn){
   state.plan.checked[idx]=!state.plan.checked[idx];
   const on=state.plan.checked[idx];
@@ -779,6 +864,13 @@ async function replan(){
 }
 function applyReplan(dropped){
   state.dirty=false;
+  // 在右侧面板里直接改（事中）→ 安静地只更新右边，不往对话框刷消息和补位选项
+  if(state.tripActive){
+    renderPlan();                 // 只重排+刷新右侧今日行程
+    flashPaneUpdated();           // 右侧轻提示"已更新"
+    return;
+  }
+  // 出发前在对话流里改 → 保留原来的对话反馈
   userMsg(dropped.length?`去掉：${dropped.join("、")}，帮我重排`:"帮我按新时间重排");
   fox(dropped.length?`好嘞，去掉 ${dropped.join("、")} 啦～ 我把时间连路上的也重新顺了一遍 👍`:"好嘞，按你改的时间重新顺好啦～ 路上时间我也算进去了 👍");
   renderPlan();
@@ -791,6 +883,18 @@ function applyReplan(dropped){
       <button class="opt-btn" onclick="fillGap(this,null)">⏭️ 不用了，就这样<small>时间宽裕点也舒服</small></button>
     </div>`;});
   }
+}
+// 右侧面板顶部闪一下"已更新"小提示
+function flashPaneUpdated(txt){
+  const head=document.querySelector(".pc-head");
+  if(!head)return;
+  let tag=document.getElementById("paneUpdated");
+  if(!tag){tag=document.createElement("span");tag.id="paneUpdated";
+    tag.style.cssText="margin-left:auto;font-size:12px;color:var(--primary);font-weight:600;opacity:0;transition:opacity .3s;";
+    head.appendChild(tag);}
+  tag.textContent=txt||"已更新 ✓";
+  requestAnimationFrame(()=>{tag.style.opacity="1";});
+  setTimeout(()=>{tag.style.opacity="0";},1600);
 }
 /* 太晚提醒弹窗：算总账，太晚才温柔提醒一句 */
 function showConflict(endTime,dropped,customMsg){
@@ -938,29 +1042,103 @@ function previewStep(idx){
   const slots=(state.plan&&state.plan.slots)||[];
   if(idx>=slots.length){
     fox("演示就到这儿啦～ 到了当天，这些提醒我会按真实时间一站一站喊你 🦊");
+    window._demoNextIdx=undefined;   // 演示结束，清掉推进标记
     return;
   }
   const sl=slots[idx];
+  // 按这一站的类型选提醒：餐饮→排队提醒；其它→时间提醒
   const kind=(sl.kind==="dining")?"queue":"time";
   proactiveForStopDemo(idx,kind);
 }
-// 演示版提醒：底部带「下一条」按钮（点了才出下一条），不触发真实换店逻辑
+// 演示推进：真实改完计划后，如果还在演示流程，接着弹下一条提醒
+function demoAdvance(){
+  if(typeof window._demoNextIdx==="number"){
+    const n=window._demoNextIdx; window._demoNextIdx=undefined;
+    state.timers.push(setTimeout(()=>previewStep(n),1200));
+  }
+}
 function proactiveForStopDemo(idx,kind){
   const slots=(state.plan&&state.plan.slots)||[];
   const stop=slots[idx]||slots[0]; if(!stop)return;
   const next=slots[idx+1];
   const name=stop.venue;
-  const txtMap={
-    time:`小友～ 按时间「${name}」差不多该收尾啦${next?`，挪去下一站「${next.venue}」正好 😊`:" 🙂"}`,
-    queue:`诶，「${name}」这会儿可能要排队哦（演示提醒）😮 真实情况我会帮你看看旁边不用等的备选～`,
-    weather:`狐狐查了下天气 🌧️「${name}」要是露天的话，我会帮你看看附近室内备选～`
-  };
-  const txt=txtMap[kind]||txtMap.time;
-  const isLast=idx>=slots.length-1;
+  // 每种提醒：文案 + 接受(真实改计划) / 拒绝(温柔回应)
+  const map={
+    time:{txt:`小友～ 按时间「${name}」差不多该收尾啦${next?`，挪去下一站「${next.venue}」正好 😊`:" 🙂"} 要狐狐帮你顺顺路线、提前挪窝嘛？`,
+      yes:"好呀，帮我顺", act:"overtime",
+      no:"再多待会儿", noReply:"那再多待会儿也行～ 玩得开心最重要 🥰"},
+    queue:{txt:`诶，「${name}」这会儿可能要排队哦（真实排队以现场为准）😮 要不要狐狐帮你看看旁边不用等的备选？`,
+      yes:"好，看看备选", act:"queue",
+      no:"耐心等等", noReply:"行～ 那就耐心等等，狐狐陪你聊会儿天 😆"},
+    weather:{txt:`狐狐查了下天气 🌧️ 这会儿可能有雨，「${name}」要是露天的话淋着不舒服～ 帮你看看附近室内的备选好不好？`,
+      yes:"好，看看室内的", act:"weather",
+      no:"先这样", noReply:"好嘞，那狐狐先帮你记着，雨大了随时喊我换 ☔"}
+  }[kind]||null;
+  const m=map||{txt:`「${name}」的提醒～`,yes:"知道啦",act:"",no:"先这样",noReply:"好嘞 🦊"};
+  window._demoNextIdx=idx+1;  // 记住下一条
+  window._demoStopIdx=idx;    // 记住当前这一站（天气/换店针对它）
   const r=document.createElement("div");r.className="msg fox";
-  r.innerHTML=`<div class="ava">🦊</div><div class="bubble alert">${txt}
-    <div class="btn-row"><button class="btn fill" onclick="this.closest('.msg').querySelector('.btn-row').remove();previewStep(${idx+1})">${isLast?"看完啦 ✓":"下一条 👉"}</button></div></div>`;
+  r.innerHTML=`<div class="ava">🦊</div><div class="bubble alert alert-active">${m.txt}
+    <div class="btn-row demo-choice">
+      <button class="btn fill" onclick="demoAccept(this,'${m.act}','${(name||"").replace(/'/g,"\\'")}',${idx+1})">${m.yes}</button>
+      <button class="btn soft" onclick="demoReject(this,'${m.noReply.replace(/'/g,"\\'")}',${idx+1})">${m.no}</button>
+    </div></div>`;
   wrap.appendChild(r);scrollB();
+}
+// 接受 → 调真实改计划函数（右侧行程会真的变）→ 变浅 → 改完自动推进下一条
+function demoAccept(btn,act,name,nextIdx){
+  const bubble=btn.closest(".bubble");const row=btn.closest(".btn-row");
+  if(bubble)bubble.classList.remove("alert-active");
+  if(row)row.remove();
+  window._demoNextIdx=nextIdx;  // 真实换店选完后，由 afterDemoSwap 接着推进
+  const curIdx=(typeof window._demoStopIdx==="number")?window._demoStopIdx:0;
+  if(act==="queue"){demoSwapInline(curIdx,"餐厅",nextIdx);}
+  else if(act==="weather"){demoSwapInline(curIdx,"商场 书店 咖啡 室内",nextIdx);}
+  else if(act==="overtime"){onOvertime();}   // 重排完(doReschedule)再接着下一条
+  else {fox("好嘞 🦊");state.timers.push(setTimeout(()=>previewStep(nextIdx),900));}
+}
+// 演示：就地小卡换店（针对当前站），点完真换+右侧更新+自动推进下一条
+async function demoSwapInline(idx,keyword,nextIdx){
+  const slot=state.plan.slots[idx];
+  if(!slot){state.timers.push(setTimeout(()=>previewStep(nextIdx),600));return;}
+  const name=slot.venue;
+  fox(`狐狐就近帮你找「${name}」附近的备选～ 稍等哦`);
+  let alts=[];
+  try{ const al=await api.getAlternatives(name).catch(()=>null); if(al&&al.alternatives&&al.alternatives.length)alts=al.alternatives.map(a=>({name:a.name,rating:a.rating||"—",perCapita:a.perCapita||null})); }catch(e){}
+  if(!alts.length && !USE_MOCK && state.city){
+    try{
+      const res=await fetch(`${API_BASE}/venues/nearby`,{method:"POST",headers:H,body:JSON.stringify({...(coordLatLng()||{lat:0,lng:0}),keyword:keyword,city:state.city,location_source:"user_authorized"})}).then(x=>x.json()).catch(()=>null);
+      if(res&&res.results)alts=res.results.filter(r=>r.name!==name).slice(0,4).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null}));
+    }catch(e){}
+  }
+  if(!alts.length){fox("附近暂时没搜到合适的备选～ 先继续哈 🦊");state.timers.push(setTimeout(()=>previewStep(nextIdx),900));return;}
+  window._demoSwapNext=nextIdx;
+  fox(`帮你找了「${name}」附近的几个备选 👇`);
+  card(c=>{
+    c.innerHTML=`<h4>🔄 换个地方</h4><div class="subt">点「换成这个」就帮你换，右边行程同步更新</div>`;
+    alts.forEach(a=>{
+      c.innerHTML+=`<div class="alt-card"><div><b>${a.name}</b><div style="color:var(--muted);font-size:12px">⭐${a.rating}${a.perCapita?" · 人均 ¥"+a.perCapita:""}</div></div><button class="swap" onclick="swapVenueDemo('${name.replace(/'/g,"")}','${a.name.replace(/'/g,"")}')">换成这个</button></div>`;
+    });
+  });
+}
+// 演示版换店：换 + 右侧更新 + 推进下一条提醒
+function swapVenueDemo(from,to){
+  const sl=state.plan.slots.find(x=>x.venue===from);if(sl)sl.venue=to;
+  renderPlan();
+  fox(`好嘞，已经帮你换成「${to}」啦～ 右边行程更新好了 👍`);
+  if(typeof window._demoSwapNext==="number"){
+    const n=window._demoSwapNext;window._demoSwapNext=undefined;
+    state.timers.push(setTimeout(()=>previewStep(n),1100));
+  }
+}
+// 拒绝 → 温柔回应 → 变浅 → 自动推进
+function demoReject(btn,reply,nextIdx){
+  const bubble=btn.closest(".bubble");const row=btn.closest(".btn-row");
+  if(bubble)bubble.classList.remove("alert-active");
+  if(row)row.remove();
+  window._demoNextIdx=undefined;   // 拒绝不走真实改计划，清掉标记，直接推进
+  fox(reply);
+  state.timers.push(setTimeout(()=>previewStep(nextIdx),900));
 }
 // 当前中国时间（分钟）
 function nowMinCN(){
@@ -1024,10 +1202,12 @@ function proactiveForStop(idx,kind){
     <button class="btn soft" onclick="this.closest('.msg').remove();fox('${data.no}')">先不用</button></div></div>`;
   wrap.appendChild(r);scrollB();
 }
-async function doWeatherSwap(){
+async function doWeatherSwap(stopIdx){
   userMsg("好，看看室内的");
-  const slot=state.plan.slots.find(x=>x.kind==="scenic"||x.kind==="walk");
-  if(!slot){fox("看了下你今天的安排基本都在室内，问题不大～ 狐狐继续帮你盯着天气哈 ☔");return;}
+  // 优先针对"当前提醒的这一站"；没传则找第一个户外站
+  let slot=(typeof stopIdx==="number"&&state.plan.slots[stopIdx])?state.plan.slots[stopIdx]:null;
+  if(!slot||(slot.kind!=="scenic"&&slot.kind!=="walk"))slot=state.plan.slots.find(x=>x.kind==="scenic"||x.kind==="walk");
+  if(!slot){fox("看了下你今天的安排基本都在室内，问题不大～ 狐狐继续帮你盯着天气哈 ☔");demoAdvance();return;}
   fox(`狐狐就近帮你找「${slot.venue}」附近的室内点～ 稍等哦`);
   let alts=[];
   if(!USE_MOCK && state.city){
@@ -1036,7 +1216,7 @@ async function doWeatherSwap(){
       if(res&&res.results)alts=res.results.filter(r=>r.name!==slot.venue).slice(0,3).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null,reason:"室内，下雨天也舒服"}));
     }catch(e){}
   }
-  if(!alts.length){fox("附近暂时没搜到合适的室内备选～ 要不先继续，雨大了我再帮你看？或者你跟我说想去哪类室内点 ☔");return;}
+  if(!alts.length){fox("附近暂时没搜到合适的室内备选～ 要不先继续，雨大了我再帮你看？或者你跟我说想去哪类室内点 ☔");demoAdvance();return;}
   card(c=>{
     c.innerHTML=`<h4>☔ 这几个室内点，下雨也舒服</h4><div class="subt">点「换成这个」就帮你把「${slot.venue}」换掉</div>`;
     alts.forEach(a=>{
@@ -1061,7 +1241,7 @@ async function doQueueSwap(diningName){
       if(res&&res.results)alts=res.results.filter(r=>r.name!==name).slice(0,3).map(r=>({name:r.name,rating:r.rating||"—",perCapita:r.cost?Math.round(parseFloat(r.cost)):null,currentQueue:"现去现问",reason:"附近同类，评分不错"}));
     }catch(e){}
   }
-  if(!alts.length){fox("狐狐找了下，附近暂时没搜到合适的同类备选～ 你也可以点这一站「详情」看看，或者跟我说想吃啥，我帮你找 😊");return;}
+  if(!alts.length){fox("狐狐找了下，附近暂时没搜到合适的同类备选～ 你也可以点这一站「详情」看看，或者跟我说想吃啥，我帮你找 😊");demoAdvance();return;}
   card(c=>{
     c.innerHTML=`<h4>🍽️ 这几家也不用等</h4><div class="subt">点「换成这个」就帮你切，时间路线我顺手重排</div>`;
     alts.forEach(a=>{
@@ -1153,7 +1333,15 @@ async function doReschedule(btn,strategy){
   card(c=>{c.innerHTML=`<h4>🦊 好嘞，按「${label}」给你排好了</h4><div class="subt">已自动重排（已完成的不动，只调后面），右边行程已更新</div>`;
     changes.forEach(ch=>c.innerHTML+=`<div class="sub" style="padding:5px 0">🔧 <b>${ch.venue}</b> —— ${ch.note}</div>`);
     c.innerHTML+=`<div class="whisper" style="margin-top:10px">✅ ${summary}</div>`;
-    const row=document.createElement("div");row.className="btn-row";row.innerHTML=`<button class="btn fill" onclick="finishTrip()">按这个走</button>`;c.appendChild(row);});
+    const row=document.createElement("div");row.className="btn-row";
+    // 演示模式：重排完接着下一条提醒；正常模式：按这个走→结束行程
+    if(typeof window._demoNextIdx==="number"){
+      const n=window._demoNextIdx;
+      row.innerHTML=`<button class="btn fill" onclick="this.closest('.btn-row').remove();window._demoNextIdx=undefined;previewStep(${n})">好的，继续</button>`;
+    } else {
+      row.innerHTML=`<button class="btn fill" onclick="finishTrip()">按这个走</button>`;
+    }
+    c.appendChild(row);});
 }
 async function finishTrip(){userMsg("按这个走");state.tripActive=false;(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});
   document.getElementById("bodySplit").classList.remove("split");
@@ -1252,6 +1440,7 @@ async function swapVenue(from,to){closePanel();userMsg(`把 ${from} 换成 ${to}
   const s=state.plan.slots.find(x=>x.venue===from);if(s){s.venue=to;}
   renderPlan(); // 刷新右侧面板，换的店立刻显示
   fox(`好嘞，已经帮你切到「${to}」啦～ 这家不用干等，右边行程已经更新好了 👍`);
+  demoAdvance(); // 演示模式：换完接着下一条提醒
 }
 
 /* 编辑能力已并入详情页：在详情页内就地改时长 / 删除，不再有独立面板，无页中页 */
