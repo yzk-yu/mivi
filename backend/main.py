@@ -71,6 +71,7 @@ class PlanReq(BaseModel):
     must_have: list[str] | None = None
     when: str | None = None
     origin: str | None = None   # 用户真实坐标"经,纬"(GPS授权时)，就近搜
+    anchor: str | None = None   # 用户指定的具体地点名(如"杭州万象城")，以它为中心就近安排
 
 @app.post("/api/v1/plans/generate")
 def generate_plans(req: PlanReq):

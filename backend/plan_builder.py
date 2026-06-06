@@ -186,11 +186,21 @@ def build_real_plan(req) -> dict | None:
     if not config.amap_available():
         return None  # 没有真实高德，直接走 Mock
 
-    # 1. 坐标偏置：优先用用户真实坐标(GPS授权)，否则用城市中心
+    # 1. 坐标偏置：优先级 GPS坐标 > 具体地点(anchor) > 城市中心
     location = ""
     user_origin = getattr(req, "origin", None)
+    anchor = getattr(req, "anchor", None)   # 用户说的具体地点，如"杭州万象城"
     if user_origin and "," in str(user_origin):
-        location = user_origin   # 用户在临浦，就搜临浦附近
+        location = user_origin   # 用户授权了GPS，就搜其附近
+    elif anchor:
+        # 用户指定了具体地点 → geocode 成坐标，以它为中心就近安排
+        pt = amap_client.geocode(anchor, req.city)
+        if pt:
+            location = pt
+            print(f"[plan] 以指定地点「{anchor}」为中心 → {pt}")
+        else:
+            center = amap_client.geocode(req.city, req.city)
+            if center: location = center
     else:
         center = amap_client.geocode(req.city, req.city)
         if center:

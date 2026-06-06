@@ -477,7 +477,7 @@ function loadHistory(id){
   setTimeout(()=>{wrap.scrollTop=wrap.scrollHeight;},100);
 }
 
-function resetChat(){(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});document.getElementById("bodySplit").classList.remove("split");wrap.innerHTML="";state.plan=null;state.reminded=false;state.dirty=false;state.tripActive=false;state.timers=[];state.vector={...VEC0};state.coord=null;state.city=null;state.mustHave=null;state.when=null;state.activeHist=null;refreshProfile();renderHistory();boot();}
+function resetChat(){(state.timers||[]).forEach(t=>{clearTimeout(t);clearInterval(t);});document.getElementById("bodySplit").classList.remove("split");wrap.innerHTML="";state.plan=null;state.reminded=false;state.dirty=false;state.tripActive=false;state.timers=[];state.vector={...VEC0};state.coord=null;state.city=null;state.mustHave=null;state.when=null;state.activeHist=null;state._waitCity=false;refreshProfile();renderHistory();boot();}
 function boot(){fox("你好呀小友！我是觅狐 🦊<br>一句话告诉我你想怎么过，比如『周六和女朋友去苏州玩，喜欢拍照，预算 500』，剩下的交给我～");}
 function quickStart(t){document.getElementById("input").value=t;onSend();}
 boot();refreshProfile();renderHistory();
@@ -485,26 +485,88 @@ boot();refreshProfile();renderHistory();
 document.getElementById("input").addEventListener("keydown",e=>{if(e.key==="Enter")onSend();});
 async function onSend(){
   const el=document.getElementById("input"),text=el.value.trim();if(!text)return;el.value="";userMsg(text);
-  // 已有方案/已出发时再打字 → 不无脑重新出方案，避免流程错乱卡死，给明确选择
-  if(state.plan){
-    fox("你是想让我【重新规划一套全新行程】，还是【在现在这套上调整】呀？");
-    card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
-      <button class="opt-btn" onclick="resetChat()">🆕 重新规划一套<small>从头来，清空当前行程</small></button>
-      <button class="opt-btn" onclick="this.closest('.msg')?.remove?.();fox('好嘞，那你在右边今日行程里直接改就行～ 取消勾选某站、点时间调整，改完点上面「临时调整」即时生效 🦊')">✏️ 调整现在这套<small>在右边行程面板上改</small></button>
-    </div>`;});
+  // 正在等用户输入城市（点了「我自己说」）→ 这句当城市/地点，后台解析提取城市，直接进选节奏，不再问位置
+  if(state._waitCity){
+    state._waitCity=false;
+    state._parsing=api.parseIntent(text).then(r=>{
+      if(!r)return r;
+      state.vector=r.preference_vector||state.vector;refreshProfile();
+      // 优先用 LLM 提取的城市；提取不到就用用户原话当城市
+      state.city=(r.entities&&r.entities.city)||text;
+      if(r.entities&&r.entities.must_have&&r.entities.must_have.length)state.mustHave=r.entities.must_have;
+      if(r.entities&&r.entities.when)state.when=r.entities.when;
+      // 输入带具体地点 → 存 anchor 当中心
+      const cy=(state.city||"").replace(/[省市区]/g,"");
+      if(cy && text.length>state.city.length && text.indexOf(cy)>=0) state._anchor=text;
+      return r;
+    }).catch(()=>{state.city=text;state._anchor=text;return null;});
+    fox(`好嘞，就看${text}的～`);
+    await delay(300);askPace();
     return;
   }
-  // 后台并行解析意图（不阻塞），结果回来悄悄更新画像/城市/偏好，用户无感
-  state._parsing=api.parseIntent(text).then(r=>{
-    if(!r)return;
+  // 已有方案时再打字：分两种情况
+  if(state.plan){
+    if(state.tripActive){
+      // 已出发(右侧有今日行程面板) → 引导去右边改
+      fox("你是想让我【重新规划一套全新行程】，还是【在现在这套上调整】呀？");
+      card(c=>{c.innerHTML=`<div class="opts" style="grid-template-columns:1fr">
+        <button class="opt-btn" onclick="resetChat()">🆕 重新规划一套<small>从头来，清空当前行程</small></button>
+        <button class="opt-btn" onclick="this.closest('.msg')?.remove?.();fox('好嘞，那你在右边今日行程里直接改就行～ 取消勾选某站、点时间调整，改完点上面「临时调整」即时生效 🦊')">✏️ 调整现在这套<small>在右边行程面板上改</small></button>
+      </div>`;});
+    } else {
+      // 还没出发(刚出方案/历史回看) → 对话式调整：理解这句话，合并到当前需求，直接重排，不再重选节奏
+      const tip2=foxThinking("好嘞，我按你说的调整一下～");
+      let r2=null;
+      try{ r2=await api.parseIntent(text); }catch(e){}
+      tip2.remove();
+      if(r2&&r2.entities){
+        const e=r2.entities;
+        if(e.preference_vector)state.vector=r2.preference_vector||state.vector;
+        if(e.city)state.city=e.city;        // 用户提到新城市就换城市
+        if(e.when)state.when=e.when;          // 提到新时间就换
+        // 新活动累加进 mustHave（去重）
+        if(e.must_have&&e.must_have.length){
+          const merged=[...(state.mustHave||[])];
+          e.must_have.forEach(m=>{if(!merged.includes(m))merged.push(m);});
+          state.mustHave=merged.slice(0,3);
+        }
+        // 提到具体地点就更新中心
+        const cy=(state.city||"").replace(/[省市区]/g,"");
+        if(cy&&text.length>state.city.length&&text.indexOf(cy)>=0)state._anchor=text;
+        refreshProfile();
+      }
+      state._parsing=Promise.resolve(r2);
+      state.activeHist=null;
+      // 直接重排（保留当前节奏/偏好，不再问"轻松还是充实"）
+      await regenPlan();
+    }
+    return;
+  }
+  // 第一句话：先解析意图，看有没有提到城市/地点
+  const tip=foxThinking("收到～ 狐狐正在理解你的需求 🦊");
+  let r=null;
+  try{ r=await api.parseIntent(text); }catch(e){}
+  tip.remove();
+  if(r){
     state.vector=r.preference_vector||state.vector;refreshProfile();
     if(r.entities&&r.entities.city)state.city=r.entities.city;
     if(r.entities&&r.entities.must_have&&r.entities.must_have.length)state.mustHave=r.entities.must_have;
     if(r.entities&&r.entities.when)state.when=r.entities.when;
-    return r;
-  }).catch(()=>null);
-  // 立刻弹位置询问，不等接口（消除等待）
-  await delay(250);askLocation();
+  }
+  // 原话带了城市以外的具体地点(如"杭州万象城") → 当作中心点 anchor，围绕它就近安排
+  state._anchor=null;
+  if(state.city && text && text.replace(/[省市区]/g,"")!==state.city.replace(/[省市区]/g,"") && text.indexOf(state.city.replace(/[省市]/g,""))>=0 && text.length>state.city.length){
+    state._anchor=text;
+  }
+  state._parsing=Promise.resolve(r);
+  // 已经从这句话里识别出城市/地点 → 不再问位置，直接进选节奏
+  if(state.city){
+    fox(`好嘞，就看${state.city}的～`);
+    await delay(300);askPace();
+  } else {
+    // 没说地点 → 才问"你大概在哪"
+    await delay(250);askLocation();
+  }
 }
 
 function askLocation(){
@@ -515,11 +577,11 @@ function askLocation(){
       <button class="opt-btn" onclick="locPick(this,'pick')">🏙️ 快捷选城市<small>点一下直接选，最快</small></button>
     </div>`;});
 }
-function cityPick(btn,city){lock(btn);state.city=city;state.coord=null;userMsg(city);fox(`好嘞，就看${city}的～`);setTimeout(askPace,300);}
+function cityPick(btn,city){lock(btn);state._waitCity=false;state.city=city;state.coord=null;userMsg(city);fox(`好嘞，就看${city}的～`);setTimeout(askPace,300);}
 function lock(btn){const o=btn.closest(".opts");[...o.children].forEach(b=>{b.disabled=true;b.style.opacity=.5;});btn.style.opacity=1;btn.style.borderColor="var(--primary-hot)";}
 async function locPick(btn,type){
   lock(btn);
-  if(type==="input"){fox("好嘞，直接打字告诉我城市或地点就行，比如『苏州平江路』～");return;}
+  if(type==="input"){state._waitCity=true;fox("好嘞，直接打字告诉我城市或地点就行，比如『苏州平江路』～");return;}
   if(type==="pick"){
     card(c=>{c.innerHTML=`<h4>🏙️ 选个城市</h4><div class="subt">点一下就行，也可以点上面「我自己说」打字～</div>
       <div class="opts" style="grid-template-columns:1fr 1fr">
@@ -558,13 +620,31 @@ async function genPlan(btn){lock(btn);userMsg(btn.firstChild.textContent.trim())
   const tip=foxThinking("觅狐正在帮你找好店、排路线…（在搜真实商家，稍等几秒哦~）");
   if(state._parsing){try{await state._parsing;}catch(e){}}  // 等后台意图解析完成，确保点名活动/城市已就位
   const planCity2=state.city||planCity;
-  const d=await api.generatePlans({city:planCity2,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null});
+  const d=await api.generatePlans({city:planCity2,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null,anchor:state._anchor||null});
   tip.remove();
   state.plan=JSON.parse(JSON.stringify(d.plans.find(p=>p.recommended)||d.plans[0]));state.dirty=false;renderPlan();
   saveHistory();
   const miss=state.plan.missing_must;
   if(miss&&miss.length){
     setTimeout(()=>fox(`对了小友～ 你想要的「${miss.join("、")}」我在${state.city||"这附近"}没搜到合适的，先没排进去。你可以换个说法、或者告诉我别的偏好，我再帮你找找 🦊`),600);
+  }
+}
+
+async function regenPlan(){
+  // 对话式调整后重排：不重选节奏，直接用当前 state 出方案
+  const planCity=state.city||"苏州";
+  const tip=foxThinking("觅狐正在按你的新要求重新排…（在搜真实商家，稍等几秒哦~）");
+  if(state._parsing){try{await state._parsing;}catch(e){}}
+  const d=await api.generatePlans({city:planCity,budget:500,preference_vector:state.vector,must_have:state.mustHave||[],when:state.when||"today",origin:state.coord||null,anchor:state._anchor||null});
+  tip.remove();
+  if(!d||!d.plans||!d.plans.length){fox("这次没排出来呢，要不换个说法再试试？🦊");return;}
+  state.plan=JSON.parse(JSON.stringify(d.plans.find(p=>p.recommended)||d.plans[0]));state.dirty=false;
+  fox("好嘞，按你说的调整好啦，看看这版 👇");
+  renderPlan();
+  saveHistory();
+  const miss=state.plan.missing_must;
+  if(miss&&miss.length){
+    setTimeout(()=>fox(`你想要的「${miss.join("、")}」我在${state.city||"这附近"}没搜到合适的，先没排进去～ 换个说法我再找找 🦊`),600);
   }
 }
 
