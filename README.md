@@ -1,3 +1,8 @@
+
+
+https://github.com/user-attachments/assets/9bee87df-2e35-4943-8f88-d7b8c494833b
+
+
 # 觅 MIVI · 对话式本地生活全天候私人管家
 
 > **美团 NEXT IDEA 2026 参赛作品** — 赛题《基于 OpenClaw 的本地生活「全天候私人管家」》
