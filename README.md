@@ -1,4 +1,4 @@
-
+> 🔊 **建议打开声音观看**（点击视频右下角喇叭图标）
 
 https://github.com/user-attachments/assets/9bee87df-2e35-4943-8f88-d7b8c494833b
 
